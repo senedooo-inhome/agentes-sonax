@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 type Agente = {
@@ -19,6 +20,24 @@ const statusOptions = [
   { label: 'Licença Paternidade', color: '#5c6bc0' },
   { label: 'Ausente', color: '#757575' },
 ]
+
+/** Botão de logout apenas nesta tela (Cadastro) */
+function BotaoSair() {
+  const router = useRouter()
+  async function sair() {
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }
+  return (
+    <button
+      onClick={sair}
+      className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-400"
+      title="Sair do sistema"
+    >
+      Sair
+    </button>
+  )
+}
 
 export default function CadastroAgentesPage() {
   const [nome, setNome] = useState('')
@@ -96,7 +115,7 @@ export default function CadastroAgentesPage() {
       />
 
       <div className="mx-auto max-w-6xl space-y-6 relative z-10">
-        {/* HEADER – padrão de navegação */}
+        {/* HEADER – padrão de navegação + logout */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
           <div className="flex gap-2">
@@ -119,6 +138,8 @@ export default function CadastroAgentesPage() {
             >
               Relatórios
             </a>
+            {/* Botão de sair só aqui */}
+            <BotaoSair />
           </div>
         </div>
 

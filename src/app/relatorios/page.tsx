@@ -10,8 +10,18 @@ type Linha = {
   tipo: string
 }
 
-const TIPOS = ['Presente', 'Saiu cedo', 'Folga'] as const
-type Tipo = typeof TIPOS[number]
+// NOVOS TIPOS DISPONÍVEIS
+const TIPOS = [
+  'Presente',
+  'Folga',
+  'Férias',
+  'Atestado',
+  'Afastado',
+  'Licença Maternidade',
+  'Licença Paternidade',
+  'Ausente',
+] as const
+type Tipo = (typeof TIPOS)[number]
 
 export default function RelatoriosPage() {
   const hojeISO = new Date().toISOString().slice(0, 10)
@@ -23,19 +33,20 @@ export default function RelatoriosPage() {
 
   const tipoMarcado = (t: Tipo) => tiposSelecionados.includes(t)
   const toggleTipo = (t: Tipo) =>
-    setTiposSelecionados(prev =>
-      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-    )
+    setTiposSelecionados(prev => (prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]))
 
   function atalhoHoje() {
     const d = new Date().toISOString().slice(0, 10)
-    setDataIni(d); setDataFim(d)
+    setDataIni(d)
+    setDataFim(d)
   }
   function atalhoSemana() {
     const d = new Date()
     const diaSemana = d.getDay() || 7
-    const inicio = new Date(d); inicio.setDate(d.getDate() - (diaSemana - 1))
-    const fim = new Date(inicio); fim.setDate(inicio.getDate() + 6)
+    const inicio = new Date(d)
+    inicio.setDate(d.getDate() - (diaSemana - 1))
+    const fim = new Date(inicio)
+    fim.setDate(inicio.getDate() + 6)
     setDataIni(inicio.toISOString().slice(0, 10))
     setDataFim(fim.toISOString().slice(0, 10))
   }
@@ -52,7 +63,8 @@ export default function RelatoriosPage() {
     try {
       const { data, error } = await supabase
         .from('presencas')
-        .select(`
+        .select(
+          `
           agente_id,
           data_registro,
           tipo,
@@ -60,15 +72,14 @@ export default function RelatoriosPage() {
             nome,
             status
           )
-        `)
+        `
+        )
         .gte('data_registro', dataIni)
         .lte('data_registro', dataFim)
 
       if (error) throw error
 
-      const filtradas = (data ?? []).filter((p: any) =>
-        tiposSelecionados.includes(p.tipo)
-      )
+      const filtradas = (data ?? []).filter((p: any) => tiposSelecionados.includes(p.tipo))
 
       const linhasFmt: Linha[] = filtradas.map((p: any) => ({
         agente_id: p.agente_id,
@@ -99,16 +110,29 @@ export default function RelatoriosPage() {
 
   function corTipo(tipo: string) {
     switch (tipo) {
-      case 'Presente': return '#46a049'
-      case 'Saiu cedo': return '#f19a37'
-      case 'Folga': return '#42a5f5'
-      default: return '#000'
+      case 'Presente':
+        return '#46a049'
+      case 'Folga':
+        return '#42a5f5'
+      case 'Férias':
+        return '#f19a37'
+      case 'Atestado':
+        return '#e53935'
+      case 'Afastado':
+        return '#9c27b0'
+      case 'Licença Maternidade':
+        return '#ff4081'
+      case 'Licença Paternidade':
+        return '#5c6bc0'
+      case 'Ausente':
+        return '#757575'
+      default:
+        return '#000'
     }
   }
 
   // --------- EXPORTAÇÃO CSV ----------
   function csvEscape(value: string) {
-    // coloca aspas e escapa aspas internas => Excel/Sheets friendly
     return `"${(value ?? '').replace(/"/g, '""')}"`
   }
 
@@ -121,7 +145,6 @@ export default function RelatoriosPage() {
     const linhasCSV = linhas.map(l =>
       [l.data_registro, l.nome, l.status_agente, l.tipo].map(csvEscape).join(';')
     )
-    // BOM para acentuação correta no Excel (UTF-8)
     const conteudo = '\uFEFF' + [headers.join(';'), ...linhasCSV].join('\r\n')
     const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -172,7 +195,7 @@ export default function RelatoriosPage() {
                 type="date"
                 className="w-full rounded-lg border p-2 text-black"
                 value={dataIni}
-                onChange={(e) => setDataIni(e.target.value)}
+                onChange={e => setDataIni(e.target.value)}
               />
             </div>
             <div>
@@ -181,20 +204,26 @@ export default function RelatoriosPage() {
                 type="date"
                 className="w-full rounded-lg border p-2 text-black"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={e => setDataFim(e.target.value)}
               />
             </div>
             <div className="flex items-end gap-2">
-              <button onClick={atalhoHoje}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+              <button
+                onClick={atalhoHoje}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
                 Hoje
               </button>
-              <button onClick={atalhoSemana}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+              <button
+                onClick={atalhoSemana}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
                 Semana
               </button>
-              <button onClick={atalhoMes}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+              <button
+                onClick={atalhoMes}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
                 Mês
               </button>
             </div>
@@ -202,13 +231,9 @@ export default function RelatoriosPage() {
 
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <span className="text-sm font-medium text-gray-700">Tipos:</span>
-            {TIPOS.map((t) => (
+            {TIPOS.map(t => (
               <label key={t} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={tipoMarcado(t)}
-                  onChange={() => toggleTipo(t)}
-                />
+                <input type="checkbox" checked={tipoMarcado(t)} onChange={() => toggleTipo(t)} />
                 <span className="font-medium" style={{ color: corTipo(t) }}>
                   {t}
                 </span>

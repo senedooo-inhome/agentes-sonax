@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 type Agente = {
@@ -21,30 +20,13 @@ const statusOptions = [
   { label: 'Ausente', color: '#757575' },
 ]
 
-/** Botão de logout apenas nesta tela (Cadastro) */
-function BotaoSair() {
-  const router = useRouter()
-  async function sair() {
-    await supabase.auth.signOut()
-    router.replace('/login')
-  }
-  return (
-    <button
-      onClick={sair}
-      className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-400"
-      title="Sair do sistema"
-    >
-      Sair
-    </button>
-  )
-}
-
 export default function CadastroAgentesPage() {
   const [nome, setNome] = useState('')
   const [status, setStatus] = useState('Ativo')
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [loading, setLoading] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [deletandoId, setDeletandoId] = useState<string | null>(null)
 
   useEffect(() => {
     carregarAgentes()
@@ -88,6 +70,27 @@ export default function CadastroAgentesPage() {
     }
   }
 
+  async function excluirAgente(id: string) {
+    if (!confirm('Tem certeza que deseja excluir este agente? Essa ação não pode ser desfeita.'))
+      return
+    try {
+      setDeletandoId(id)
+
+      // 1) Se você NÃO tem FK com ON DELETE CASCADE, limpe presenças do agente primeiro:
+      await supabase.from('presencas').delete().eq('agente_id', id)
+
+      // 2) Exclui o agente
+      const { error } = await supabase.from('agentes').delete().eq('id', id)
+      if (error) throw error
+
+      await carregarAgentes()
+    } catch (e: any) {
+      alert('Erro ao excluir: ' + e.message)
+    } finally {
+      setDeletandoId(null)
+    }
+  }
+
   function corStatus(s: string) {
     const map: Record<string, string> = Object.fromEntries(
       statusOptions.map(o => [o.label, o.color])
@@ -97,7 +100,7 @@ export default function CadastroAgentesPage() {
 
   return (
     <main className="relative min-h-screen bg-[#f5f6f7] p-8 overflow-hidden">
-      {/* Imagens decorativas */}
+      {/* Decorações (opcionais) */}
       <img
         src="/nuvem-esq.png"
         alt=""
@@ -115,37 +118,20 @@ export default function CadastroAgentesPage() {
       />
 
       <div className="mx-auto max-w-6xl space-y-6 relative z-10">
-        {/* HEADER – padrão de navegação + logout */}
+        {/* HEADER de navegação */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
           <div className="flex gap-2">
-            <span
-              className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 cursor-default"
-              aria-current="page"
-              title="Você está em Cadastro"
-            >
-              Cadastro
-            </span>
-            <a
-              href="/chamada"
-              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Chamada
-            </a>
-            <a
-              href="/relatorios"
-              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Relatórios
-            </a>
-            {/* Botão de sair só aqui */}
-            <BotaoSair />
+            <span className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 cursor-default">Cadastro</span>
+            <a href="/chamada" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Chamada</a>
+            <a href="/relatorios" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Relatórios</a>
+            <a href="/login?logout=1" className="rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600">Sair</a>
           </div>
         </div>
 
-        {/* DUAS COLUNAS */}
+        {/* COLUNAS */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* Coluna esquerda: formulário (altura fixa) */}
+          {/* Formulário */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Novo agente</h2>
             <div className="flex flex-col gap-4">
@@ -178,13 +164,12 @@ export default function CadastroAgentesPage() {
               </button>
             </div>
 
-            {/* Logo Sonax */}
             <div className="mt-auto flex items-center justify-center pt-6">
               <img src="/logo-sonax.png" alt="Sonax In Home" className="w-64 opacity-95" />
             </div>
           </div>
 
-          {/* Coluna direita: lista (altura fixa + scroll interno) */}
+          {/* Lista de agentes */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Agentes cadastrados</h2>
             <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
@@ -198,28 +183,38 @@ export default function CadastroAgentesPage() {
                     {a.nome} — {a.status}
                   </span>
 
-                  {editandoId === a.id ? (
-                    <select
-                      autoFocus
-                      className="rounded-lg border p-2 text-black"
-                      defaultValue={a.status}
-                      onChange={(e) => atualizarStatus(a.id, e.target.value)}
-                      onBlur={() => setEditandoId(null)}
-                    >
-                      {statusOptions.map((s) => (
-                        <option key={s.label} value={s.label}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
+                  <div className="flex items-center gap-3">
+                    {editandoId === a.id ? (
+                      <select
+                        autoFocus
+                        className="rounded-lg border p-2 text-black"
+                        defaultValue={a.status}
+                        onChange={(e) => atualizarStatus(a.id, e.target.value)}
+                        onBlur={() => setEditandoId(null)}
+                      >
+                        {statusOptions.map((s) => (
+                          <option key={s.label} value={s.label}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        className="text-sm text-[#2687e2] hover:underline"
+                        onClick={() => setEditandoId(a.id)}
+                      >
+                        Editar
+                      </button>
+                    )}
+
                     <button
-                      className="text-sm text-[#2687e2] hover:underline"
-                      onClick={() => setEditandoId(a.id)}
+                      className="text-sm text-red-500 hover:underline disabled:opacity-50"
+                      onClick={() => excluirAgente(a.id)}
+                      disabled={deletandoId === a.id}
                     >
-                      Editar
+                      {deletandoId === a.id ? 'Excluindo…' : 'Excluir'}
                     </button>
-                  )}
+                  </div>
                 </li>
               ))}
               {agentes.length === 0 && (

@@ -3,8 +3,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 type Agente = { id: string; nome: string; status: string }
-// Agora só existem duas marcações possíveis
-type TipoMarca = 'Presente' | 'Folga'
+
+// Todos os tipos de marcação do dia
+type TipoMarca =
+  | 'Presente'
+  | 'Folga'
+  | 'Férias'
+  | 'Atestado'
+  | 'Afastado'
+  | 'Licença Maternidade'
+  | 'Licença Paternidade'
+  | 'Ausente'
 
 export default function ChamadaPage() {
   const [agentes, setAgentes] = useState<Agente[]>([])
@@ -13,11 +22,17 @@ export default function ChamadaPage() {
   const [q, setQ] = useState('') // busca
   const hoje = new Date().toISOString().slice(0, 10)
 
-  // Opções do seletor (sem "Saiu cedo")
+  // Opções de marcação (inclui todos os motivos)
   const opcoes = useMemo(
     () => [
       { value: 'Presente' as const, label: 'Presente', badge: '✅', cor: '#46a049' },
       { value: 'Folga' as const, label: 'Folga', badge: '🟦', cor: '#42a5f5' },
+      { value: 'Férias' as const, label: 'Férias', badge: '🏖️', cor: '#f19a37' },
+      { value: 'Atestado' as const, label: 'Atestado', badge: '🩺', cor: '#e53935' },
+      { value: 'Afastado' as const, label: 'Afastado', badge: '⛔', cor: '#9c27b0' },
+      { value: 'Licença Maternidade' as const, label: 'Licença Maternidade', badge: '👶', cor: '#ff4081' },
+      { value: 'Licença Paternidade' as const, label: 'Licença Paternidade', badge: '🍼', cor: '#5c6bc0' },
+      { value: 'Ausente' as const, label: 'Ausente', badge: '🚫', cor: '#757575' },
     ],
     []
   )
@@ -57,6 +72,7 @@ export default function ChamadaPage() {
         })
 
       if (error) {
+        // fallback se não existir índice único
         await supabase.from('presencas').delete().eq('agente_id', agenteId).eq('data_registro', hoje)
         const { error: e2 } = await supabase
           .from('presencas')
@@ -84,6 +100,9 @@ export default function ChamadaPage() {
       default: return '#757575'
     }
   }
+  function corTipo(t: TipoMarca) {
+    return opcoes.find(o => o.value === t)?.cor ?? '#999'
+  }
 
   // ---- Busca (remove acentos e ignora maiúsculas/minúsculas)
   function norm(s: string) {
@@ -98,9 +117,14 @@ export default function ChamadaPage() {
 
   // Listas da coluna direita
   const listaPresente = agentes.filter(a => marcasHoje[a.id] === 'Presente')
-  const listaFolga = agentes.filter(a => marcasHoje[a.id] === 'Folga')
-  // NOVO: quem ainda não logou (somente Ativo e sem marcação no dia)
+
+  // Ainda não logaram = status Ativo e sem marcação hoje
   const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
+
+  // Ausências = qualquer marcação diferente de Presente
+  const listaAusencias = agentes
+    .map(a => ({ ...a, tipo: marcasHoje[a.id] as TipoMarca | undefined }))
+    .filter(a => a.tipo && a.tipo !== 'Presente') as (Agente & { tipo: TipoMarca })[]
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
@@ -165,7 +189,7 @@ export default function ChamadaPage() {
 
             <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
               {agentesFiltrados.map((a) => {
-                const marcado = marcasHoje[a.id]
+                const marcado = marcasHoje[a.id] as TipoMarca | undefined
                 const podeMarcar = a.status === 'Ativo' || Boolean(marcado)
                 return (
                   <li
@@ -181,7 +205,9 @@ export default function ChamadaPage() {
                       <select
                         disabled={!podeMarcar || loading}
                         value={marcado ?? ''}
-                        onChange={(e) => registrar(a.id, (e.target.value || 'Presente') as TipoMarca)}
+                        onChange={(e) =>
+                          registrar(a.id, (e.target.value || 'Presente') as TipoMarca)
+                        }
                         className="rounded-lg border p-2 text-black"
                       >
                         <option value="" disabled hidden>
@@ -223,7 +249,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 3 — Ainda não logaram (DERIVADO) */}
+          {/* QUADRO 3 — Ainda não logaram */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
             {listaNaoLogou.length === 0 ? (
@@ -243,20 +269,20 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 4 — Folga */}
+          {/* QUADRO 4 — Ausência (Motivo) */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
-            <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem está de folga</h2>
-            {listaFolga.length === 0 ? (
-              <p className="text-gray-500">Ninguém marcado como Folga.</p>
+            <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
+            {listaAusencias.length === 0 ? (
+              <p className="text-gray-500">Sem ausências registradas hoje.</p>
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaFolga.map((a) => (
+                {listaAusencias.map((a) => (
                   <li
                     key={a.id}
                     className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: '6px solid #42a5f5' }}
+                    style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}
                   >
-                    {a.nome} — 🟦 Folga
+                    {a.nome} — {opcoes.find(o => o.value === a.tipo)?.badge} {a.tipo}
                   </li>
                 ))}
               </ul>

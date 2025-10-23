@@ -3,18 +3,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 type Agente = { id: string; nome: string; status: string }
-type TipoMarca = 'Presente' | 'Saiu cedo' | 'Folga'
+// Agora só existem duas marcações possíveis
+type TipoMarca = 'Presente' | 'Folga'
 
 export default function ChamadaPage() {
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [marcasHoje, setMarcasHoje] = useState<Record<string, TipoMarca>>({})
   const [loading, setLoading] = useState(false)
+  const [q, setQ] = useState('') // busca
   const hoje = new Date().toISOString().slice(0, 10)
 
+  // Opções do seletor (sem "Saiu cedo")
   const opcoes = useMemo(
     () => [
       { value: 'Presente' as const, label: 'Presente', badge: '✅', cor: '#46a049' },
-      { value: 'Saiu cedo' as const, label: 'Saiu cedo', badge: '⏰', cor: '#f19a37' },
       { value: 'Folga' as const, label: 'Folga', badge: '🟦', cor: '#42a5f5' },
     ],
     []
@@ -83,9 +85,22 @@ export default function ChamadaPage() {
     }
   }
 
+  // ---- Busca (remove acentos e ignora maiúsculas/minúsculas)
+  function norm(s: string) {
+    return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+  }
+
+  const agentesFiltrados = useMemo(() => {
+    if (!q.trim()) return agentes
+    const nq = norm(q)
+    return agentes.filter(a => norm(a.nome).includes(nq))
+  }, [agentes, q])
+
+  // Listas da coluna direita
   const listaPresente = agentes.filter(a => marcasHoje[a.id] === 'Presente')
-  const listaSaiuCedo = agentes.filter(a => marcasHoje[a.id] === 'Saiu cedo')
-  const listaFolga    = agentes.filter(a => marcasHoje[a.id] === 'Folga')
+  const listaFolga = agentes.filter(a => marcasHoje[a.id] === 'Folga')
+  // NOVO: quem ainda não logou (somente Ativo e sem marcação no dia)
+  const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
@@ -124,8 +139,32 @@ export default function ChamadaPage() {
           {/* QUADRO 1 — Chamada */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
+
+            {/* Barra de busca */}
+            <div className="mb-3 flex items-center gap-2">
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Buscar agente…"
+                className="w-full rounded-lg border p-2 text-black"
+              />
+              {q && (
+                <button
+                  onClick={() => setQ('')}
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  title="Limpar"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mb-2">
+              {agentesFiltrados.length} de {agentes.length} agentes
+            </p>
+
             <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-              {agentes.map((a) => {
+              {agentesFiltrados.map((a) => {
                 const marcado = marcasHoje[a.id]
                 const podeMarcar = a.status === 'Ativo' || Boolean(marcado)
                 return (
@@ -158,8 +197,8 @@ export default function ChamadaPage() {
                   </li>
                 )
               })}
-              {agentes.length === 0 && (
-                <p className="text-gray-500">Nenhum agente cadastrado.</p>
+              {agentesFiltrados.length === 0 && (
+                <p className="text-gray-500">Nenhum agente encontrado.</p>
               )}
             </ul>
           </div>
@@ -184,20 +223,20 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 3 — Saiu cedo */}
+          {/* QUADRO 3 — Ainda não logaram (DERIVADO) */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
-            <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem saiu cedo</h2>
-            {listaSaiuCedo.length === 0 ? (
-              <p className="text-gray-500">Ninguém marcado como Saiu cedo.</p>
+            <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
+            {listaNaoLogou.length === 0 ? (
+              <p className="text-gray-500">Todos já marcaram presença hoje 🎉</p>
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaSaiuCedo.map((a) => (
+                {listaNaoLogou.map((a) => (
                   <li
                     key={a.id}
                     className="rounded-lg border p-3 font-medium text-black"
                     style={{ borderLeft: '6px solid #f19a37' }}
                   >
-                    {a.nome} — ⏰ Saiu cedo
+                    {a.nome} — ⏳ Ainda não logou
                   </li>
                 ))}
               </ul>

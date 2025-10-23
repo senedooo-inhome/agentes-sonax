@@ -25,7 +25,12 @@ export default function CadastroAgentesPage() {
   const [status, setStatus] = useState('Ativo')
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [loading, setLoading] = useState(false)
+
+  // edição de NOME
   const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [editNome, setEditNome] = useState('')
+
+  // exclusão
   const [deletandoId, setDeletandoId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -56,30 +61,48 @@ export default function CadastroAgentesPage() {
     }
   }
 
-  async function atualizarStatus(id: string, novoStatus: string) {
+  // ====== EDIÇÃO DE NOME ======
+  function iniciarEdicao(a: Agente) {
+    setEditandoId(a.id)
+    setEditNome(a.nome)
+  }
+
+  async function salvarNome() {
+    if (!editandoId) return
+    const novo = editNome.trim()
+    if (!novo) return alert('O nome não pode ficar vazio.')
     try {
       setLoading(true)
-      const { error } = await supabase.from('agentes').update({ status: novoStatus }).eq('id', id)
+      const { error } = await supabase
+        .from('agentes')
+        .update({ nome: novo })
+        .eq('id', editandoId)
       if (error) throw error
       setEditandoId(null)
+      setEditNome('')
       await carregarAgentes()
     } catch (e: any) {
-      alert('Erro ao atualizar: ' + e.message)
+      alert('Erro ao atualizar nome: ' + e.message)
     } finally {
       setLoading(false)
     }
   }
 
+  function cancelarEdicao() {
+    setEditandoId(null)
+    setEditNome('')
+  }
+
+  // ====== EXCLUSÃO ======
   async function excluirAgente(id: string) {
     if (!confirm('Tem certeza que deseja excluir este agente? Essa ação não pode ser desfeita.'))
       return
     try {
       setDeletandoId(id)
 
-      // 1) Se você NÃO tem FK com ON DELETE CASCADE, limpe presenças do agente primeiro:
+      // Se não houver FK com ON DELETE CASCADE, limpe presenças primeiro:
       await supabase.from('presencas').delete().eq('agente_id', id)
 
-      // 2) Exclui o agente
       const { error } = await supabase.from('agentes').delete().eq('id', id)
       if (error) throw error
 
@@ -122,10 +145,27 @@ export default function CadastroAgentesPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
           <div className="flex gap-2">
-            <span className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 cursor-default">Cadastro</span>
-            <a href="/chamada" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Chamada</a>
-            <a href="/relatorios" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Relatórios</a>
-            <a href="/login?logout=1" className="rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600">Sair</a>
+            <span className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 cursor-default">
+              Cadastro
+            </span>
+            <a
+              href="/chamada"
+              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Chamada
+            </a>
+            <a
+              href="/relatorios"
+              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Relatórios
+            </a>
+            <a
+              href="/login?logout=1"
+              className="rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+            >
+              Sair
+            </a>
           </div>
         </div>
 
@@ -179,29 +219,44 @@ export default function CadastroAgentesPage() {
                   className="flex items-center justify-between rounded-lg border p-3"
                   style={{ borderLeft: `6px solid ${corStatus(a.status)}` }}
                 >
+                  {/* Exibição do nome + status */}
                   <span className="font-medium text-black">
-                    {a.nome} — {a.status}
-                  </span>
-
-                  <div className="flex items-center gap-3">
                     {editandoId === a.id ? (
-                      <select
+                      <input
                         autoFocus
                         className="rounded-lg border p-2 text-black"
-                        defaultValue={a.status}
-                        onChange={(e) => atualizarStatus(a.id, e.target.value)}
-                        onBlur={() => setEditandoId(null)}
-                      >
-                        {statusOptions.map((s) => (
-                          <option key={s.label} value={s.label}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
+                        value={editNome}
+                        onChange={(e) => setEditNome(e.target.value)}
+                      />
+                    ) : (
+                      <>
+                        {a.nome} — {a.status}
+                      </>
+                    )}
+                  </span>
+
+                  {/* Ações */}
+                  <div className="flex items-center gap-3">
+                    {editandoId === a.id ? (
+                      <>
+                        <button
+                          className="text-sm text-[#2687e2] hover:underline disabled:opacity-50"
+                          onClick={salvarNome}
+                          disabled={loading || !editNome.trim()}
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          className="text-sm text-gray-600 hover:underline"
+                          onClick={cancelarEdicao}
+                        >
+                          Cancelar
+                        </button>
+                      </>
                     ) : (
                       <button
                         className="text-sm text-[#2687e2] hover:underline"
-                        onClick={() => setEditandoId(a.id)}
+                        onClick={() => iniciarEdicao(a)}
                       >
                         Editar
                       </button>

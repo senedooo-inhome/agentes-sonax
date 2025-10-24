@@ -10,7 +10,7 @@ type Linha = {
   tipo: string
 }
 
-// todos os tipos
+// todos os tipos de marcação contemplados
 const TIPOS = [
   'Presente',
   'Folga',
@@ -31,7 +31,7 @@ export default function RelatoriosPage() {
   const [linhas, setLinhas] = useState<Linha[]>([])
   const [carregando, setCarregando] = useState(false)
 
-  // === NOVO: filtro por nome ===
+  // filtro por nome
   const [q, setQ] = useState('')
 
   const tipoMarcado = (t: Tipo) => tiposSelecionados.includes(t)
@@ -79,6 +79,7 @@ export default function RelatoriosPage() {
 
       if (error) throw error
 
+      // filtra pelos tipos marcados
       const filtradas = (data ?? []).filter((p: any) =>
         tiposSelecionados.includes(p.tipo)
       )
@@ -91,6 +92,7 @@ export default function RelatoriosPage() {
         tipo: p.tipo,
       }))
 
+      // ordena (data desc, depois nome)
       linhasFmt.sort((a, b) =>
         a.data_registro === b.data_registro
           ? a.nome.localeCompare(b.nome)
@@ -125,7 +127,7 @@ export default function RelatoriosPage() {
     }
   }
 
-  // normaliza para busca (sem acento/maiúscula)
+  // normaliza para busca (remove acentos e ignora caixa)
   function norm(s: string) {
     return (s || '')
       .normalize('NFD')
@@ -133,7 +135,7 @@ export default function RelatoriosPage() {
       .toLowerCase()
   }
 
-  // aplica filtro de nome na lista carregada
+  // filtra por nome no resultado carregado
   const linhasVisiveis = useMemo(() => {
     if (!q.trim()) return linhas
     const nq = norm(q)
@@ -154,6 +156,7 @@ export default function RelatoriosPage() {
     const linhasCSV = linhasVisiveis.map(l =>
       [l.data_registro, l.nome, l.status_agente, l.tipo].map(csvEscape).join(';')
     )
+    // BOM para acentuação correta no Excel (UTF-8)
     const conteudo = '\uFEFF' + [headers.join(';'), ...linhasCSV].join('\r\n')
     const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -170,7 +173,7 @@ export default function RelatoriosPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* HEADER */}
+        {/* HEADER com menu completo */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios</h1>
           <div className="flex gap-2">
@@ -188,10 +191,27 @@ export default function RelatoriosPage() {
             </a>
             <span
               className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default"
-              aria-current="page"
             >
               Relatórios
             </span>
+            <a
+              href="/campanhas"
+              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Campanhas
+            </a>
+            <a
+              href="/campanhas/relatorios"
+              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Rel. campanhas
+            </a>
+            <a
+              href="/login?logout=1"
+              className="rounded-lg bg-gray-500 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+            >
+              Sair
+            </a>
           </div>
         </div>
 
@@ -232,7 +252,7 @@ export default function RelatoriosPage() {
             </div>
           </div>
 
-          {/* NOVO: Filtro por nome */}
+          {/* Filtro por nome */}
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -255,6 +275,7 @@ export default function RelatoriosPage() {
             </span>
           </div>
 
+          {/* Tipos */}
           <div className="mt-2 flex flex-wrap items-center gap-4">
             <span className="text-sm font-medium text-gray-700">Tipos:</span>
             {TIPOS.map((t) => (

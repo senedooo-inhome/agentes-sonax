@@ -138,12 +138,12 @@ export default function ChamadaPage() {
           <div className="flex items-center gap-2">
             <a
               href="/"
-              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
               Cadastro
             </a>
             <span
-              className="rounded-lg bg-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 cursor-default"
+              className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default"
               aria-current="page"
               title="Você está em Chamada"
             >
@@ -151,9 +151,28 @@ export default function ChamadaPage() {
             </span>
             <a
               href="/relatorios"
-              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
               Relatórios
+            </a>
+            {/* NOVOS */}
+            <a
+              href="/campanhas"
+              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Campanhas
+            </a>
+            <a
+              href="/campanhas/relatorios"
+              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Rel. campanhas
+            </a>
+            <a
+              href="/login?logout=1"
+              className="rounded-lg bg-gray-500 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+            >
+              Sair
             </a>
           </div>
         </div>

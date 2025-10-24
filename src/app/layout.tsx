@@ -12,9 +12,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: "Sonax In Home - Chamada de Agentes", 
+export const metadata: Metadata = {
+  title: "Sonax In Home - Chamada de Agentes",
   description: "Sistema interno de gestão de presença Sonax In Home",
+  icons: {
+    icon: "/favicon.png", // altere aqui se usar .ico → "/favicon.ico"
+  },
 };
 
 export default function RootLayout({
@@ -23,7 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
+      <head>
+        <link rel="icon" href="/favicon.png" type="image/png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

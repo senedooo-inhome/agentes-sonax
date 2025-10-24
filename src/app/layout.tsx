@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Sonax In Home - Chamada de Agentes",
   description: "Sistema interno de gestão de presença Sonax In Home",
   icons: {
-    icon: "/favicon.png", // altere aqui se usar .ico → "/favicon.ico"
+    icon: "/icon.png", // esse é o novo favicon
   },
 };
 
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
-        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="icon" href="/icon.png" type="image/png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

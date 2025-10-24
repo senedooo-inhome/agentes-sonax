@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 type Linha = {
@@ -10,7 +10,7 @@ type Linha = {
   tipo: string
 }
 
-// NOVOS TIPOS DISPONÍVEIS
+// todos os tipos
 const TIPOS = [
   'Presente',
   'Folga',
@@ -21,7 +21,7 @@ const TIPOS = [
   'Licença Paternidade',
   'Ausente',
 ] as const
-type Tipo = (typeof TIPOS)[number]
+type Tipo = typeof TIPOS[number]
 
 export default function RelatoriosPage() {
   const hojeISO = new Date().toISOString().slice(0, 10)
@@ -31,22 +31,24 @@ export default function RelatoriosPage() {
   const [linhas, setLinhas] = useState<Linha[]>([])
   const [carregando, setCarregando] = useState(false)
 
+  // === NOVO: filtro por nome ===
+  const [q, setQ] = useState('')
+
   const tipoMarcado = (t: Tipo) => tiposSelecionados.includes(t)
   const toggleTipo = (t: Tipo) =>
-    setTiposSelecionados(prev => (prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]))
+    setTiposSelecionados(prev =>
+      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+    )
 
   function atalhoHoje() {
     const d = new Date().toISOString().slice(0, 10)
-    setDataIni(d)
-    setDataFim(d)
+    setDataIni(d); setDataFim(d)
   }
   function atalhoSemana() {
     const d = new Date()
     const diaSemana = d.getDay() || 7
-    const inicio = new Date(d)
-    inicio.setDate(d.getDate() - (diaSemana - 1))
-    const fim = new Date(inicio)
-    fim.setDate(inicio.getDate() + 6)
+    const inicio = new Date(d); inicio.setDate(d.getDate() - (diaSemana - 1))
+    const fim = new Date(inicio); fim.setDate(inicio.getDate() + 6)
     setDataIni(inicio.toISOString().slice(0, 10))
     setDataFim(fim.toISOString().slice(0, 10))
   }
@@ -63,8 +65,7 @@ export default function RelatoriosPage() {
     try {
       const { data, error } = await supabase
         .from('presencas')
-        .select(
-          `
+        .select(`
           agente_id,
           data_registro,
           tipo,
@@ -72,14 +73,15 @@ export default function RelatoriosPage() {
             nome,
             status
           )
-        `
-        )
+        `)
         .gte('data_registro', dataIni)
         .lte('data_registro', dataFim)
 
       if (error) throw error
 
-      const filtradas = (data ?? []).filter((p: any) => tiposSelecionados.includes(p.tipo))
+      const filtradas = (data ?? []).filter((p: any) =>
+        tiposSelecionados.includes(p.tipo)
+      )
 
       const linhasFmt: Linha[] = filtradas.map((p: any) => ({
         agente_id: p.agente_id,
@@ -108,41 +110,48 @@ export default function RelatoriosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // cores por tipo
   function corTipo(tipo: string) {
     switch (tipo) {
-      case 'Presente':
-        return '#46a049'
-      case 'Folga':
-        return '#42a5f5'
-      case 'Férias':
-        return '#f19a37'
-      case 'Atestado':
-        return '#e53935'
-      case 'Afastado':
-        return '#9c27b0'
-      case 'Licença Maternidade':
-        return '#ff4081'
-      case 'Licença Paternidade':
-        return '#5c6bc0'
-      case 'Ausente':
-        return '#757575'
-      default:
-        return '#000'
+      case 'Presente': return '#46a049'
+      case 'Folga': return '#42a5f5'
+      case 'Férias': return '#f19a37'
+      case 'Atestado': return '#e53935'
+      case 'Afastado': return '#9c27b0'
+      case 'Licença Maternidade': return '#ff4081'
+      case 'Licença Paternidade': return '#5c6bc0'
+      case 'Ausente': return '#757575'
+      default: return '#000'
     }
   }
 
-  // --------- EXPORTAÇÃO CSV ----------
+  // normaliza para busca (sem acento/maiúscula)
+  function norm(s: string) {
+    return (s || '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+  }
+
+  // aplica filtro de nome na lista carregada
+  const linhasVisiveis = useMemo(() => {
+    if (!q.trim()) return linhas
+    const nq = norm(q)
+    return linhas.filter(l => norm(l.nome).includes(nq))
+  }, [linhas, q])
+
+  // --------- EXPORTAÇÃO CSV (usa linhasVisiveis) ----------
   function csvEscape(value: string) {
     return `"${(value ?? '').replace(/"/g, '""')}"`
   }
 
   function exportarCSV() {
-    if (!linhas.length) {
+    if (!linhasVisiveis.length) {
       alert('Não há dados para exportar.')
       return
     }
     const headers = ['Data', 'Nome', 'Status agente', 'Tipo']
-    const linhasCSV = linhas.map(l =>
+    const linhasCSV = linhasVisiveis.map(l =>
       [l.data_registro, l.nome, l.status_agente, l.tipo].map(csvEscape).join(';')
     )
     const conteudo = '\uFEFF' + [headers.join(';'), ...linhasCSV].join('\r\n')
@@ -156,12 +165,12 @@ export default function RelatoriosPage() {
     a.remove()
     URL.revokeObjectURL(url)
   }
-  // -----------------------------------
+  // -------------------------------------------------------
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* HEADER padronizado */}
+        {/* HEADER */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios</h1>
           <div className="flex gap-2">
@@ -187,7 +196,7 @@ export default function RelatoriosPage() {
         </div>
 
         {/* FILTROS */}
-        <div className="rounded-xl bg-white p-6 shadow">
+        <div className="rounded-xl bg-white p-6 shadow space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Data inicial</label>
@@ -195,7 +204,7 @@ export default function RelatoriosPage() {
                 type="date"
                 className="w-full rounded-lg border p-2 text-black"
                 value={dataIni}
-                onChange={e => setDataIni(e.target.value)}
+                onChange={(e) => setDataIni(e.target.value)}
               />
             </div>
             <div>
@@ -204,36 +213,57 @@ export default function RelatoriosPage() {
                 type="date"
                 className="w-full rounded-lg border p-2 text-black"
                 value={dataFim}
-                onChange={e => setDataFim(e.target.value)}
+                onChange={(e) => setDataFim(e.target.value)}
               />
             </div>
             <div className="flex items-end gap-2">
-              <button
-                onClick={atalhoHoje}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-              >
+              <button onClick={atalhoHoje}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
                 Hoje
               </button>
-              <button
-                onClick={atalhoSemana}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-              >
+              <button onClick={atalhoSemana}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
                 Semana
               </button>
-              <button
-                onClick={atalhoMes}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-              >
+              <button onClick={atalhoMes}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
                 Mês
               </button>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-4">
+          {/* NOVO: Filtro por nome */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar por nome do agente…"
+              className="w-full md:w-96 rounded-lg border p-2 text-black"
+            />
+            {q && (
+              <button
+                onClick={() => setQ('')}
+                className="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                title="Limpar busca"
+              >
+                Limpar
+              </button>
+            )}
+            <span className="ml-auto text-xs text-gray-500">
+              {linhasVisiveis.length} de {linhas.length} registros
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-4">
             <span className="text-sm font-medium text-gray-700">Tipos:</span>
-            {TIPOS.map(t => (
+            {TIPOS.map((t) => (
               <label key={t} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={tipoMarcado(t)} onChange={() => toggleTipo(t)} />
+                <input
+                  type="checkbox"
+                  checked={tipoMarcado(t)}
+                  onChange={() => toggleTipo(t)}
+                />
                 <span className="font-medium" style={{ color: corTipo(t) }}>
                   {t}
                 </span>
@@ -251,9 +281,9 @@ export default function RelatoriosPage() {
 
               <button
                 onClick={exportarCSV}
-                disabled={!linhas.length}
+                disabled={!linhasVisiveis.length}
                 className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-40"
-                title={linhas.length ? 'Exportar resultados em CSV' : 'Sem dados para exportar'}
+                title={linhasVisiveis.length ? 'Exportar resultados em CSV' : 'Sem dados para exportar'}
               >
                 Exportar CSV
               </button>
@@ -263,7 +293,7 @@ export default function RelatoriosPage() {
 
         {/* TABELA */}
         <div className="rounded-xl bg-white p-6 shadow">
-          {linhas.length === 0 ? (
+          {linhasVisiveis.length === 0 ? (
             <p className="text-gray-500">Nenhum registro no período selecionado.</p>
           ) : (
             <div className="max-h-[60vh] overflow-y-auto">
@@ -277,7 +307,7 @@ export default function RelatoriosPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {linhas.map((l, i) => (
+                  {linhasVisiveis.map((l, i) => (
                     <tr key={i} className="text-sm">
                       <td className="border-b p-2 text-black">{l.data_registro}</td>
                       <td className="border-b p-2 text-gray-700 font-medium">{l.nome}</td>

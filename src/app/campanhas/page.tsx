@@ -90,7 +90,9 @@ export default function CampanhasPage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Campanhas</h1>
-          {/* botão de Relatórios removido */}
+          
+            
+      
         </header>
 
         {/* Abas */}
@@ -120,7 +122,7 @@ export default function CampanhasPage() {
 
             <form onSubmit={enviarElogio} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Data</label>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
                 <input type="date" value={elogioForm.data}
                   onChange={e=>setElogioForm({...elogioForm, data:e.target.value})}
                   className="w-full rounded-lg border p-2 text-black"/>
@@ -128,7 +130,7 @@ export default function CampanhasPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Nicho</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
                   <select value={elogioForm.nicho}
                     onChange={e=>setElogioForm({...elogioForm, nicho: e.target.value as Nicho})}
                     className="w-full rounded-lg border p-2 text-black">
@@ -136,7 +138,7 @@ export default function CampanhasPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Nome</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nome</label>
                   <input type="text" value={elogioForm.nome}
                     onChange={e=>setElogioForm({...elogioForm, nome:e.target.value})}
                     className="w-full rounded-lg border p-2 text-black" placeholder="Seu nome"/>
@@ -145,13 +147,13 @@ export default function CampanhasPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Empresa</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Empresa</label>
                   <input type="text" value={elogioForm.empresa}
                     onChange={e=>setElogioForm({...elogioForm, empresa:e.target.value})}
                     className="w-full rounded-lg border p-2 text-black" placeholder="Opcional"/>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Telefone ou Protocolo</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Telefone ou Protocolo</label>
                   <input type="text" value={elogioForm.telefone_protocolo}
                     onChange={e=>setElogioForm({...elogioForm, telefone_protocolo:e.target.value})}
                     className="w-full rounded-lg border p-2 text-black" placeholder="Opcional"/>
@@ -159,7 +161,7 @@ export default function CampanhasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Qual foi o elogio?</label>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Qual foi o elogio?</label>
                 <textarea rows={4} value={elogioForm.elogio}
                   onChange={e=>setElogioForm({...elogioForm, elogio:e.target.value})}
                   className="w-full rounded-lg border p-2 text-black" placeholder="Descreva o elogio recebido"/>
@@ -182,7 +184,7 @@ export default function CampanhasPage() {
 
             <form onSubmit={enviarReciclagem} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Data</label>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
                 <input type="date" value={recForm.data}
                   onChange={e=>setRecForm({...recForm, data:e.target.value})}
                   className="w-full rounded-lg border p-2 text-black"/>
@@ -190,7 +192,7 @@ export default function CampanhasPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Nicho</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
                   <select value={recForm.nicho}
                     onChange={e=>setRecForm({...recForm, nicho: e.target.value as Nicho})}
                     className="w-full rounded-lg border p-2 text-black">
@@ -198,7 +200,7 @@ export default function CampanhasPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Seu nome</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Seu nome</label>
                   <input type="text" value={recForm.nome}
                     onChange={e=>setRecForm({...recForm, nome:e.target.value})}
                     className="w-full rounded-lg border p-2 text-black" placeholder="Seu nome"/>
@@ -206,7 +208,7 @@ export default function CampanhasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Empresa(s) com prioridade (pode informar mais de uma)
                 </label>
                 <input type="text" value={recForm.empresas_prioridade}
@@ -215,7 +217,7 @@ export default function CampanhasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Dentro do nicho escolhido, em quais empresas tem mais dificuldade?
                 </label>
                 <input type="text" value={recForm.empresas_dificuldade}
@@ -225,7 +227,7 @@ export default function CampanhasPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Preparado para mais demandas?</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Preparado para mais demandas?</label>
                   <div className="flex gap-3">
                     {(['Sim','Não'] as const).map(v=>(
                       <label key={v} className="flex items-center gap-2 text-sm">
@@ -237,7 +239,7 @@ export default function CampanhasPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Preferência para agendamento</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Preferência para agendamento</label>
                   <select value={recForm.preferencia_horario}
                     onChange={e=>setRecForm({...recForm, preferencia_horario:e.target.value as any})}
                     className="w-full rounded-lg border p-2 text-black">
@@ -246,7 +248,7 @@ export default function CampanhasPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Duas reciclagens no mesmo dia (mesmo nicho)?</label>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Duas reciclagens no mesmo dia (mesmo nicho)?</label>
                   <div className="flex gap-3">
                     {(['Sim','Não'] as const).map(v=>(
                       <label key={v} className="flex items-center gap-2 text-sm">

@@ -1,277 +1,314 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
-type Nicho = 'SAC' | 'Clínica'
+type Linha = {
+  id: string
+  campanha: 'Elogio Premiado' | 'Reciclagem'
+  data: string
+  nicho: 'SAC' | 'Clínica'
+  nome: string
+  empresa?: string | null
+  telefone_protocolo?: string | null
+  elogio?: string | null
+  empresas_prioridade?: string | null
+  empresas_dificuldade?: string | null
+  preparado?: boolean | null
+  preferencia_horario?: string | null
+  duas_no_mesmo_dia?: boolean | null
+  created_at: string
+}
 
-export default function CampanhasPage() {
-  const [aba, setAba] = useState<'elogio'|'reciclagem'>('elogio')
-
-  // --- Elogio Premiado ---
+export default function RelatoriosCampanhas() {
   const hoje = new Date().toISOString().slice(0,10)
-  const [elogioForm, setElogioForm] = useState({
-    data: hoje,
-    nicho: 'SAC' as Nicho,
-    nome: '',
-    empresa: '',
-    telefone_protocolo: '',
-    elogio: ''
-  })
-  const [enviandoElogio, setEnviandoElogio] = useState(false)
+  const [dataIni, setDataIni] = useState(hoje)
+  const [dataFim, setDataFim] = useState(hoje)
+  const [fNicho, setFNicho] = useState<string>('Todos')
+  const [fCampanha, setFCampanha] = useState<string>('Todas')
+  const [qNome, setQNome] = useState('')
 
-  async function enviarElogio(e: React.FormEvent) {
-    e.preventDefault()
-    if (!elogioForm.nome.trim()) { alert('Informe o nome.'); return }
-    if (!elogioForm.elogio.trim()) { alert('Descreva o elogio.'); return }
+  const [linhas, setLinhas] = useState<Linha[]>([])
+  const [loading, setLoading] = useState(false)
+
+  function atalhoHoje(){ const d = new Date().toISOString().slice(0,10); setDataIni(d); setDataFim(d) }
+  function atalhoSemana() {
+    const d = new Date(); const dow = d.getDay() || 7
+    const ini = new Date(d); ini.setDate(d.getDate() - (dow-1))
+    const fim = new Date(ini); fim.setDate(ini.getDate()+6)
+    setDataIni(ini.toISOString().slice(0,10)); setDataFim(fim.toISOString().slice(0,10))
+  }
+  function atalhoMes() {
+    const d = new Date(); const ini = new Date(d.getFullYear(), d.getMonth(), 1)
+    const fim = new Date(d.getFullYear(), d.getMonth()+1, 0)
+    setDataIni(ini.toISOString().slice(0,10)); setDataFim(fim.toISOString().slice(0,10))
+  }
+
+  async function buscar() {
+    setLoading(true)
     try {
-      setEnviandoElogio(true)
-      const { error } = await supabase.from('campanha_elogio').insert([{
-        data: elogioForm.data,
-        nicho: elogioForm.nicho,
-        nome: elogioForm.nome.trim(),
-        empresa: elogioForm.empresa.trim() || null,
-        telefone_protocolo: elogioForm.telefone_protocolo.trim() || null,
-        elogio: elogioForm.elogio.trim()
-      }])
-      if (error) throw error
-      alert('Elogio enviado com sucesso!')
-      setElogioForm({ data: hoje, nicho: 'SAC', nome: '', empresa: '', telefone_protocolo: '', elogio: '' })
+      // ELOGIOS
+      const elogiosQ = supabase
+        .from('campanha_elogio')
+        .select('id, created_at, data, nicho, nome, empresa, telefone_protocolo, elogio')
+        .gte('data', dataIni).lte('data', dataFim)
+
+      // RECICLAGENS
+      const reciclagemQ = supabase
+        .from('campanha_reciclagem')
+        .select('id, created_at, data, nicho, nome, empresas_prioridade, empresas_dificuldade, preparado, preferencia_horario, duas_no_mesmo_dia')
+        .gte('data', dataIni).lte('data', dataFim)
+
+      const [{ data: elogios, error: e1 }, { data: recs, error: e2 }] = await Promise.all([elogiosQ, reciclagemQ])
+      if (e1) throw e1
+      if (e2) throw e2
+
+      const L1: Linha[] = (elogios ?? []).map((r:any)=>({
+        id: r.id, campanha: 'Elogio Premiado', data: r.data, nicho: r.nicho, nome: r.nome,
+        empresa: r.empresa, telefone_protocolo: r.telefone_protocolo, elogio: r.elogio,
+        created_at: r.created_at
+      }))
+      const L2: Linha[] = (recs ?? []).map((r:any)=>({
+        id: r.id, campanha: 'Reciclagem', data: r.data, nicho: r.nicho, nome: r.nome,
+        empresas_prioridade: r.empresas_prioridade, empresas_dificuldade: r.empresas_dificuldade,
+        preparado: r.preparado, preferencia_horario: r.preferencia_horario, duas_no_mesmo_dia: r.duas_no_mesmo_dia,
+        created_at: r.created_at
+      }))
+
+      let all = [...L1, ...L2]
+
+      if (fCampanha !== 'Todas') {
+        all = all.filter(l => l.campanha === fCampanha)
+      }
+      if (fNicho !== 'Todos') {
+        all = all.filter(l => l.nicho === fNicho)
+      }
+      const nq = qNome.trim().toLowerCase()
+      if (nq) {
+        all = all.filter(l => l.nome.toLowerCase().includes(nq))
+      }
+
+      all.sort((a,b)=> a.data===b.data ? a.nome.localeCompare(b.nome) : (a.data < b.data ? 1 : -1))
+      setLinhas(all)
     } catch (err:any) {
-      alert('Erro ao enviar: ' + err.message)
+      alert('Erro ao buscar: ' + err.message)
     } finally {
-      setEnviandoElogio(false)
+      setLoading(false)
     }
   }
 
-  // --- Reciclagem ---
-  const [recForm, setRecForm] = useState({
-    data: hoje,
-    nicho: 'Clínica' as Nicho,
-    nome: '',
-    empresas_prioridade: '',
-    empresas_dificuldade: '',
-    preparado: 'Sim' as 'Sim'|'Não',
-    preferencia_horario: 'Semana após 18:00' as 'Semana após 18:00'|'Final de semana',
-    duas_no_mesmo_dia: 'Não' as 'Sim'|'Não'
-  })
-  const [enviandoRec, setEnviandoRec] = useState(false)
+  useEffect(()=>{ buscar() }, []) // carga inicial
 
-  async function enviarReciclagem(e: React.FormEvent) {
-    e.preventDefault()
-    if (!recForm.nome.trim()) { alert('Informe seu nome.'); return }
-    try {
-      setEnviandoRec(true)
-      const { error } = await supabase.from('campanha_reciclagem').insert([{
-        data: recForm.data,
-        nicho: recForm.nicho,
-        nome: recForm.nome.trim(),
-        empresas_prioridade: recForm.empresas_prioridade.trim() || null,
-        empresas_dificuldade: recForm.empresas_dificuldade.trim() || null,
-        preparado: recForm.preparado === 'Sim',
-        preferencia_horario: recForm.preferencia_horario,
-        duas_no_mesmo_dia: recForm.duas_no_mesmo_dia === 'Sim'
-      }])
-      if (error) throw error
-      alert('Resposta enviada! Obrigado 🙂')
-      setRecForm({
-        data: hoje, nicho: 'Clínica', nome: '',
-        empresas_prioridade: '', empresas_dificuldade: '',
-        preparado: 'Sim', preferencia_horario: 'Semana após 18:00', duas_no_mesmo_dia: 'Não'
-      })
-    } catch (err:any) {
-      alert('Erro ao enviar: ' + err.message)
-    } finally {
-      setEnviandoRec(false)
-    }
+  function csvEscape(v: any) { return `"${String(v ?? '').replace(/"/g,'""')}"` }
+  function exportarCSV() {
+    if (!linhas.length) { alert('Sem dados.'); return }
+    const headers = [
+      'Campanha','Data','Nicho','Nome','Empresa','Telefone/Protocolo','Elogio',
+      'Empresas prioridade','Empresas dificuldade','Preparado','Preferência','Duas no mesmo dia','Criado em'
+    ]
+    const rows = linhas.map(l => [
+      l.campanha, l.data, l.nicho, l.nome, l.empresa ?? '', l.telefone_protocolo ?? '', l.elogio ?? '',
+      l.empresas_prioridade ?? '', l.empresas_dificuldade ?? '',
+      l.preparado === true ? 'Sim' : l.preparado === false ? 'Não' : '',
+      l.preferencia_horario ?? '', l.duas_no_mesmo_dia === true ? 'Sim' : l.duas_no_mesmo_dia === false ? 'Não' : '',
+      new Date(l.created_at).toLocaleString('pt-BR')
+    ].map(csvEscape).join(';'))
+    const conteudo = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n')
+    const blob = new Blob([conteudo], { type:'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url
+    a.download = `campanhas_${dataIni}_a_${dataFim}.csv`
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
   }
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-6">
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#2687e2]">Campanhas</h1>
+          <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios — Campanhas</h1>
           <div className="flex gap-2">
+            {/* voltar ao cadastro de agentes */}
             <a
-              href="/campanhas/relatorios"
-              className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              href="/"
+              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
-              Relatórios
+              Cadastro
+            </a>
+            <a
+              href="/campanhas"
+              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Formulário
             </a>
           </div>
         </header>
 
-        {/* Abas */}
-        <div className="rounded-xl bg-white p-2 shadow flex gap-2">
-          <button
-            className={`px-4 py-2 rounded-lg text-sm font-semibold ${aba==='elogio'?'bg-[#2687e2] text-white':'bg-gray-100 text-gray-700'}`}
-            onClick={()=>setAba('elogio')}
-          >
-            Elogio Premiado
-          </button>
-          <button
-            className={`px-4 py-2 rounded-lg text-sm font-semibold ${aba==='reciclagem'?'bg-[#2687e2] text-white':'bg-gray-100 text-gray-700'}`}
-            onClick={()=>setAba('reciclagem')}
-          >
-            Reciclagem 2025
-          </button>
+        {/* Filtros */}
+        <div className="rounded-xl bg-white p-6 shadow space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data inicial</label>
+              <input
+                type="date"
+                value={dataIni}
+                onChange={e=>setDataIni(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data final</label>
+              <input
+                type="date"
+                value={dataFim}
+                onChange={e=>setDataFim(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Nicho</label>
+              <select
+                value={fNicho}
+                onChange={e=>setFNicho(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
+                {['Todos','SAC','Clínica'].map(n=><option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Campanha</label>
+              <select
+                value={fCampanha}
+                onChange={e=>setFCampanha(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
+                {['Todas','Elogio Premiado','Reciclagem'].map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="grow">
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Filtrar por Nome</label>
+              <input
+                type="text"
+                value={qNome}
+                onChange={e=>setQNome(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"
+                placeholder="Digite o nome"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={atalhoHoje}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+                Hoje
+              </button>
+              <button onClick={atalhoSemana}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+                Semana
+              </button>
+              <button onClick={atalhoMes}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+                Mês
+              </button>
+            </div>
+
+            <div className="ml-auto flex gap-2">
+              <button onClick={buscar} disabled={loading}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
+                {loading ? 'Buscando…' : 'Aplicar filtros'}
+              </button>
+              <button onClick={exportarCSV} disabled={!linhas.length}
+                className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-40">
+                Exportar CSV
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Texto motivacional / instruções */}
-        {aba==='elogio' ? (
-          <div className="rounded-xl bg-white p-6 shadow space-y-4">
-            <p className="text-gray-800">
-              <b>Campanha: Elogio Premiado</b><br/>
-              Parabéns por receber um elogio no seu atendimento! Isso mostra que seu esforço e dedicação estão sendo reconhecidos.
-              Continue assim, e que venham mais elogios e conquistas no seu caminho. Boa sorte e sucesso!
-            </p>
+        {/* Tabela */}
+        <div className="rounded-xl bg-white p-6 shadow">
+          {!linhas.length ? (
+            <p className="text-gray-500">Nenhum registro no período/critério.</p>
+          ) : (
+            <div className="max-h-[60vh] overflow-y-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="text-left text-sm text-gray-600">
+                    <th className="border-b p-2">Campanha</th>
+                    <th className="border-b p-2">Data</th>
+                    <th className="border-b p-2">Nicho</th>
+                    <th className="border-b p-2">Nome</th>
+                    <th className="border-b p-2">Empresa / Protocolo / Preferência</th>
+                    <th className="border-b p-2">Detalhes</th>
+                    <th className="border-b p-2">Criado em</th>
+                  </tr>
+                </thead>
+                <tbody>
+  {linhas.map(l => (
+    <tr key={`${l.campanha}-${l.id}`} className="text-sm">
+      <td className="border-b p-2 text-[#535151]">{l.campanha}</td>
+      <td className="border-b p-2 text-[#535151]">{l.data}</td>
+      <td className="border-b p-2 text-[#535151]">{l.nicho}</td>
+      <td className="border-b p-2 text-[#535151] font-medium">{l.nome}</td>
 
-            <form onSubmit={enviarElogio} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
-                <input type="date" value={elogioForm.data}
-                  onChange={e=>setElogioForm({...elogioForm, data:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-black"/>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
-                  <select value={elogioForm.nicho}
-                    onChange={e=>setElogioForm({...elogioForm, nicho: e.target.value as Nicho})}
-                    className="w-full rounded-lg border p-2 text-black">
-                    {['SAC','Clínica'].map(n=><option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nome</label>
-                  <input type="text" value={elogioForm.nome}
-                    onChange={e=>setElogioForm({...elogioForm, nome:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-black" placeholder="Seu nome"/>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Empresa</label>
-                  <input type="text" value={elogioForm.empresa}
-                    onChange={e=>setElogioForm({...elogioForm, empresa:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-black" placeholder="Opcional"/>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Telefone ou Protocolo</label>
-                  <input type="text" value={elogioForm.telefone_protocolo}
-                    onChange={e=>setElogioForm({...elogioForm, telefone_protocolo:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-black" placeholder="Opcional"/>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Qual foi o elogio?</label>
-                <textarea rows={4} value={elogioForm.elogio}
-                  onChange={e=>setElogioForm({...elogioForm, elogio:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-black" placeholder="Descreva o elogio recebido"/>
-              </div>
-
-              <button type="submit" disabled={enviandoElogio}
-                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
-                {enviandoElogio ? 'Enviando…' : 'Enviar'}
-              </button>
-            </form>
-          </div>
+      <td className="border-b p-2 text-[#535151]">
+        {l.campanha === 'Elogio Premiado' ? (
+          <>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Empresa:</span>{' '}
+              {l.empresa ?? '-'}
+            </div>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Fone/Protocolo:</span>{' '}
+              {l.telefone_protocolo ?? '-'}
+            </div>
+          </>
         ) : (
-          <div className="rounded-xl bg-white p-6 shadow space-y-4">
-            <p className="text-gray-800">
-              <b>Campanha: RECICLAGEM</b><br/>
-              Abaixo você encontrará uma série de perguntas para melhor entendermos e agendarmos as reciclagens de 2025.
-              Marque conforme disponibilidade e maior interesse. <br/>
-              <i>Lembrando que as reciclagens serão agendadas de acordo com as demandas e fora do horário de expediente.</i>
-            </p>
-
-            <form onSubmit={enviarReciclagem} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
-                <input type="date" value={recForm.data}
-                  onChange={e=>setRecForm({...recForm, data:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-black"/>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
-                  <select value={recForm.nicho}
-                    onChange={e=>setRecForm({...recForm, nicho: e.target.value as Nicho})}
-                    className="w-full rounded-lg border p-2 text-black">
-                    {['Clínica','SAC'].map(n=><option key={n} value={n}>{n}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Seu nome</label>
-                  <input type="text" value={recForm.nome}
-                    onChange={e=>setRecForm({...recForm, nome:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-black" placeholder="Seu nome"/>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                  Empresa(s) com prioridade (pode informar mais de uma)
-                </label>
-                <input type="text" value={recForm.empresas_prioridade}
-                  onChange={e=>setRecForm({...recForm, empresas_prioridade:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-black" placeholder="Separe por vírgulas"/>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                  Dentro do nicho escolhido, em quais empresas tem mais dificuldade?
-                </label>
-                <input type="text" value={recForm.empresas_dificuldade}
-                  onChange={e=>setRecForm({...recForm, empresas_dificuldade:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-black" placeholder="Separe por vírgulas"/>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Preparado para mais demandas?</label>
-                  <div className="flex gap-3">
-                    {(['Sim','Não'] as const).map(v=>(
-                      <label key={v} className="flex items-center gap-2 text-sm">
-                        <input type="radio" name="preparado" checked={recForm.preparado===v} onChange={()=>setRecForm({...recForm, preparado:v})}/>
-                        <span>{v}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Preferência para agendamento</label>
-                  <select value={recForm.preferencia_horario}
-                    onChange={e=>setRecForm({...recForm, preferencia_horario:e.target.value as any})}
-                    className="w-full rounded-lg border p-2 text-black">
-                    {['Semana após 18:00','Final de semana'].map(v=><option key={v} value={v}>{v}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Duas reciclagens no mesmo dia (mesmo nicho)?</label>
-                  <div className="flex gap-3">
-                    {(['Sim','Não'] as const).map(v=>(
-                      <label key={v} className="flex items-center gap-2 text-sm">
-                        <input type="radio" name="duas" checked={recForm.duas_no_mesmo_dia===v} onChange={()=>setRecForm({...recForm, duas_no_mesmo_dia:v})}/>
-                        <span>{v}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <button type="submit" disabled={enviandoRec}
-                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
-                {enviandoRec ? 'Enviando…' : 'Enviar'}
-              </button>
-            </form>
-          </div>
+          <>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Preferência:</span>{' '}
+              {l.preferencia_horario ?? '-'}
+            </div>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Duas no mesmo dia:</span>{' '}
+              {l.duas_no_mesmo_dia === true ? 'Sim' : l.duas_no_mesmo_dia === false ? 'Não' : '-'}
+            </div>
+          </>
         )}
+      </td>
+
+      <td className="border-b p-2 text-[#535151]">
+        {l.campanha === 'Elogio Premiado' ? (
+          <div className="whitespace-pre-line">{l.elogio}</div>
+        ) : (
+          <>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Prioridade:</span>{' '}
+              {l.empresas_prioridade ?? '-'}
+            </div>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Dificuldade:</span>{' '}
+              {l.empresas_dificuldade ?? '-'}
+            </div>
+            <div>
+              <span className="font-semibold" style={{ color: '#ff751f' }}>Preparado:</span>{' '}
+              {l.preparado === true ? 'Sim' : l.preparado === false ? 'Não' : '-'}
+            </div>
+          </>
+        )}
+      </td>
+
+      <td className="border-b p-2 text-[#535151]">
+        {new Date(l.created_at).toLocaleString('pt-BR')}
+      </td>
+    </tr>
+  ))}
+</tbody>
+
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   )

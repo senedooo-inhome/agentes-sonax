@@ -51,6 +51,7 @@ export default function ErrosFormPage() {
   const tiposErro = [
     'Factorial',
     'Pontualidade',
+    'Erro atendimento Tel',
     'Problemas tec.',
     'Erro atendimento chat',
     'Mat. Trab. inadequado',

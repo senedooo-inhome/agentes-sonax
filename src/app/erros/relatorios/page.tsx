@@ -8,35 +8,42 @@ type LinhaErro = {
   data: string
   supervisor: string
   agente: string
+  tipo: string | null
   relato: string
   created_at: string
 }
+
+const TIPOS_ERRO = [
+  'Factorial',
+  'Pontualidade',
+  'Erro atendimento Tel',
+  'Problemas tec.',
+  'Erro atendimento chat',
+  'Mat. Trab. inadequado',
+  'Tabulação incorreta',
+  'Falta de atenção Bitrix',
+  'Outros',
+]
 
 export default function RelatorioErros() {
   const router = useRouter()
 
   // --------- PROTEÇÃO: somente supervisão ----------
-useEffect(() => {
-  async function verificarPermissao() {
-    const { data } = await supabase.auth.getSession()
-    const email = data.session?.user?.email
-
-    if (!email) {
-      router.replace('/login?next=' + window.location.pathname)
-      return
+  useEffect(() => {
+    async function verificarPermissao() {
+      const { data } = await supabase.auth.getSession()
+      const email = data.session?.user?.email
+      if (!email) {
+        router.replace('/login?next=' + window.location.pathname)
+        return
+      }
+      if (email !== 'supervisao@sonax.net.br') {
+        alert('Acesso restrito à supervisão.')
+        router.replace('/')
+      }
     }
-
-    // Somente supervisão pode acessar relatórios
-    if (email !== 'supervisao@sonax.net.br') {
-      alert('Acesso restrito à supervisão.')
-      router.replace('/')
-    }
-  }
-
-  verificarPermissao()
-}, [router])
-
-
+    verificarPermissao()
+  }, [router])
   // --------------------------------------------------
 
   const hoje = new Date().toISOString().slice(0,10)
@@ -44,6 +51,7 @@ useEffect(() => {
   const [dataFim, setDataFim] = useState(hoje)
   const [qSupervisor, setQSupervisor] = useState('')
   const [qAgente, setQAgente] = useState('')
+  const [fTipo, setFTipo] = useState<string>('Todos')
 
   const [linhas, setLinhas] = useState<LinhaErro[]>([])
   const [loading, setLoading] = useState(false)
@@ -64,21 +72,27 @@ useEffect(() => {
   async function buscar() {
     setLoading(true)
     try {
-      // Tabela esperada: public.erros_agentes
-      // colunas: id (uuid), created_at (timestamptz), data (date), supervisor (text), agente (text), relato (text)
+      // agora selecionamos também o campo 'tipo'
       const { data, error } = await supabase
         .from('erros_agentes')
-        .select('id, created_at, data, supervisor, agente, relato')
+        .select('id, created_at, data, supervisor, agente, tipo, relato')
         .gte('data', dataIni)
         .lte('data', dataFim)
 
       if (error) throw error
 
       let all = (data ?? []) as LinhaErro[]
+
+      // filtros de texto
       const qSup = qSupervisor.trim().toLowerCase()
       const qAgt = qAgente.trim().toLowerCase()
-      if (qSup) all = all.filter(l => l.supervisor.toLowerCase().includes(qSup))
-      if (qAgt) all = all.filter(l => l.agente.toLowerCase().includes(qAgt))
+      if (qSup) all = all.filter(l => (l.supervisor ?? '').toLowerCase().includes(qSup))
+      if (qAgt) all = all.filter(l => (l.agente ?? '').toLowerCase().includes(qAgt))
+
+      // filtro por tipo (se não for "Todos")
+      if (fTipo !== 'Todos') {
+        all = all.filter(l => (l.tipo ?? '') === fTipo)
+      }
 
       all.sort((a,b)=> a.data===b.data ? a.agente.localeCompare(b.agente) : (a.data < b.data ? 1 : -1))
       setLinhas(all)
@@ -89,14 +103,14 @@ useEffect(() => {
     }
   }
 
-  useEffect(()=>{ buscar() }, [])
+  useEffect(()=>{ buscar() }, []) // carga inicial
 
   function csvEscape(v: any) { return `"${String(v ?? '').replace(/"/g,'""')}"` }
   function exportarCSV() {
     if (!linhas.length) { alert('Sem dados.'); return }
-    const headers = ['Data','Supervisor','Agente','Relato','Criado em']
+    const headers = ['Data','Supervisor','Agente','Tipo','Relato','Criado em']
     const rows = linhas.map(l => [
-      l.data, l.supervisor, l.agente, l.relato,
+      l.data, l.supervisor, l.agente, l.tipo ?? '', l.relato,
       new Date(l.created_at).toLocaleString('pt-BR')
     ].map(csvEscape).join(';'))
     const conteudo = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n')
@@ -121,7 +135,7 @@ useEffect(() => {
 
         {/* Filtros */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data inicial</label>
               <input type="date" value={dataIni} onChange={e=>setDataIni(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"/>
@@ -137,6 +151,17 @@ useEffect(() => {
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Agente</label>
               <input type="text" value={qAgente} onChange={e=>setQAgente(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Filtrar por agente"/>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Tipo do erro</label>
+              <select
+                value={fTipo}
+                onChange={e=>setFTipo(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
+                <option value="Todos">Todos</option>
+                {TIPOS_ERRO.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
           </div>
 
@@ -170,6 +195,7 @@ useEffect(() => {
                     <th className="border-b p-2">Data</th>
                     <th className="border-b p-2">Supervisor</th>
                     <th className="border-b p-2">Agente</th>
+                    <th className="border-b p-2">Tipo</th>
                     <th className="border-b p-2">Relato</th>
                     <th className="border-b p-2">Criado em</th>
                   </tr>
@@ -180,6 +206,7 @@ useEffect(() => {
                       <td className="border-b p-2 text-[#535151]">{l.data}</td>
                       <td className="border-b p-2 text-[#535151]">{l.supervisor}</td>
                       <td className="border-b p-2 text-[#535151]">{l.agente}</td>
+                      <td className="border-b p-2 text-[#535151]">{l.tipo ?? '-'}</td>
                       <td className="border-b p-2 text-[#535151] whitespace-pre-line">{l.relato}</td>
                       <td className="border-b p-2 text-[#535151]">{new Date(l.created_at).toLocaleString('pt-BR')}</td>
                     </tr>

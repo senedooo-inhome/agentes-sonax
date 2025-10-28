@@ -5,18 +5,24 @@ import { supabase } from '@/lib/supabaseClient'
 
 type Linha = {
   id: string
-  campanha: 'Elogio Premiado' | 'Reciclagem'
+  campanha: 'Elogio Premiado' | 'Reciclagem' | 'Vale'
   data: string
-  nicho: 'SAC' | 'Clínica'
+  nicho?: 'SAC' | 'Clínica' | '-'         // Vale não tem nicho → '-'
   nome: string
+  // Elogio
   empresa?: string | null
   telefone_protocolo?: string | null
   elogio?: string | null
+  // Reciclagem
   empresas_prioridade?: string | null
   empresas_dificuldade?: string | null
   preparado?: boolean | null
   preferencia_horario?: string | null
   duas_no_mesmo_dia?: boolean | null
+  // Vale
+  valor?: number | null
+  ciente?: boolean | null
+
   created_at: string
 }
 
@@ -67,19 +73,33 @@ export default function RelatoriosCampanhas() {
   async function buscar() {
     setLoading(true)
     try {
+      // ELOGIOS
       const elogiosQ = supabase
         .from('campanha_elogio')
         .select('id, created_at, data, nicho, nome, empresa, telefone_protocolo, elogio')
         .gte('data', dataIni).lte('data', dataFim)
 
+      // RECICLAGENS
       const reciclagemQ = supabase
         .from('campanha_reciclagem')
         .select('id, created_at, data, nicho, nome, empresas_prioridade, empresas_dificuldade, preparado, preferencia_horario, duas_no_mesmo_dia')
         .gte('data', dataIni).lte('data', dataFim)
 
-      const [{ data: elogios, error: e1 }, { data: recs, error: e2 }] = await Promise.all([elogiosQ, reciclagemQ])
+      // VALE
+      const valeQ = supabase
+        .from('campanha_vale')
+        .select('id, created_at, data, nome, valor, ciente')
+        .gte('data', dataIni).lte('data', dataFim)
+
+      const [
+        { data: elogios, error: e1 },
+        { data: recs, error: e2 },
+        { data: vales, error: e3 }
+      ] = await Promise.all([elogiosQ, reciclagemQ, valeQ])
+
       if (e1) throw e1
       if (e2) throw e2
+      if (e3) throw e3
 
       const L1: Linha[] = (elogios ?? []).map((r:any)=>({
         id: r.id, campanha: 'Elogio Premiado', data: r.data, nicho: r.nicho, nome: r.nome,
@@ -91,13 +111,22 @@ export default function RelatoriosCampanhas() {
         preparado: r.preparado, preferencia_horario: r.preferencia_horario, duas_no_mesmo_dia: r.duas_no_mesmo_dia,
         created_at: r.created_at
       }))
+      const L3: Linha[] = (vales ?? []).map((r:any)=>({
+        id: r.id, campanha: 'Vale', data: r.data, nicho: '-', nome: r.nome,
+        valor: typeof r.valor === 'number' ? r.valor : (r.valor ? Number(r.valor) : null),
+        ciente: r.ciente,
+        created_at: r.created_at
+      }))
 
-      let all = [...L1, ...L2]
-      if (fCampanha !== 'Todas') all = all.filter(l => l.campanha === fCampanha)
+      let all = [...L1, ...L2, ...L3]
+
+      // Filtros
+      if (fCampanha !== 'Todas') all = all.filter(l => l.campanha === fCampanha as any)
       if (fNicho !== 'Todos')   all = all.filter(l => l.nicho === fNicho)
       const nq = qNome.trim().toLowerCase()
       if (nq) all = all.filter(l => l.nome.toLowerCase().includes(nq))
 
+      // Ordenação: data desc, depois nome
       all.sort((a,b)=> a.data===b.data ? a.nome.localeCompare(b.nome) : (a.data < b.data ? 1 : -1))
       setLinhas(all)
     } catch (err:any) {
@@ -113,14 +142,31 @@ export default function RelatoriosCampanhas() {
   function exportarCSV() {
     if (!linhas.length) { alert('Sem dados.'); return }
     const headers = [
-      'Campanha','Data','Nicho','Nome','Empresa','Telefone/Protocolo','Elogio',
-      'Empresas prioridade','Empresas dificuldade','Preparado','Preferência','Duas no mesmo dia','Criado em'
+      'Campanha','Data','Nicho','Nome',
+      'Empresa','Telefone/Protocolo','Elogio',
+      'Empresas prioridade','Empresas dificuldade','Preparado','Preferência','Duas no mesmo dia',
+      'Valor','Ciente',
+      'Criado em'
     ]
     const rows = linhas.map(l => [
-      l.campanha, l.data, l.nicho, l.nome, l.empresa ?? '', l.telefone_protocolo ?? '', l.elogio ?? '',
-      l.empresas_prioridade ?? '', l.empresas_dificuldade ?? '',
+      l.campanha,
+      l.data,
+      l.nicho ?? '',
+      l.nome,
+      // Elogio
+      l.empresa ?? '',
+      l.telefone_protocolo ?? '',
+      l.elogio ?? '',
+      // Reciclagem
+      l.empresas_prioridade ?? '',
+      l.empresas_dificuldade ?? '',
       l.preparado === true ? 'Sim' : l.preparado === false ? 'Não' : '',
-      l.preferencia_horario ?? '', l.duas_no_mesmo_dia === true ? 'Sim' : l.duas_no_mesmo_dia === false ? 'Não' : '',
+      l.preferencia_horario ?? '',
+      l.duas_no_mesmo_dia === true ? 'Sim' : l.duas_no_mesmo_dia === false ? 'Não' : '',
+      // Vale
+      (l.valor ?? '') as any,
+      l.ciente === true ? 'Sim' : l.ciente === false ? 'Não' : '',
+      // fim
       new Date(l.created_at).toLocaleString('pt-BR')
     ].map(csvEscape).join(';'))
     const conteudo = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n')
@@ -159,11 +205,12 @@ export default function RelatoriosCampanhas() {
               <select value={fNicho} onChange={e=>setFNicho(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151]">
                 {['Todos','SAC','Clínica'].map(n=><option key={n} value={n}>{n}</option>)}
               </select>
+              <p className="text-[11px] text-gray-500 mt-1">* Registros da campanha Vale aparecem apenas quando Nicho = “Todos”.</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Campanha</label>
               <select value={fCampanha} onChange={e=>setFCampanha(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151]">
-                {['Todas','Elogio Premiado','Reciclagem'].map(c=><option key={c} value={c}>{c}</option>)}
+                {['Todas','Elogio Premiado','Reciclagem','Vale'].map(c=><option key={c} value={c}>{c}</option>)}
               </select>
             </div>
           </div>
@@ -203,7 +250,7 @@ export default function RelatoriosCampanhas() {
                     <th className="border-b p-2">Data</th>
                     <th className="border-b p-2">Nicho</th>
                     <th className="border-b p-2">Nome</th>
-                    <th className="border-b p-2">Empresa / Protocolo / Preferência</th>
+                    <th className="border-b p-2">Empresa / Protocolo / Preferência / Valor</th>
                     <th className="border-b p-2">Detalhes</th>
                     <th className="border-b p-2">Criado em</th>
                   </tr>
@@ -213,32 +260,43 @@ export default function RelatoriosCampanhas() {
                     <tr key={`${l.campanha}-${l.id}`} className="text-sm">
                       <td className="border-b p-2 text-[#535151]">{l.campanha}</td>
                       <td className="border-b p-2 text-[#535151]">{l.data}</td>
-                      <td className="border-b p-2 text-[#535151]">{l.nicho}</td>
+                      <td className="border-b p-2 text-[#535151]">{l.nicho ?? '-'}</td>
                       <td className="border-b p-2 text-[#535151] font-medium">{l.nome}</td>
+
                       <td className="border-b p-2 text-[#535151]">
                         {l.campanha==='Elogio Premiado' ? (
                           <>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Empresa:</span> {l.empresa ?? '-'}</div>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Fone/Protocolo:</span> {l.telefone_protocolo ?? '-'}</div>
                           </>
-                        ) : (
+                        ) : l.campanha==='Reciclagem' ? (
                           <>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Preferência:</span> {l.preferencia_horario ?? '-'}</div>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Duas no mesmo dia:</span> {l.duas_no_mesmo_dia===true?'Sim':l.duas_no_mesmo_dia===false?'Não':'-'}</div>
                           </>
+                        ) : (
+                          // Vale
+                          <>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Valor:</span> {typeof l.valor==='number' ? l.valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Ciente:</span> {l.ciente===true?'Sim':l.ciente===false?'Não':'-'}</div>
+                          </>
                         )}
                       </td>
+
                       <td className="border-b p-2 text-[#535151]">
                         {l.campanha==='Elogio Premiado' ? (
                           <div className="whitespace-pre-line">{l.elogio}</div>
-                        ) : (
+                        ) : l.campanha==='Reciclagem' ? (
                           <>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Prioridade:</span> {l.empresas_prioridade ?? '-'}</div>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Dificuldade:</span> {l.empresas_dificuldade ?? '-'}</div>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Preparado:</span> {l.preparado===true?'Sim':l.preparado===false?'Não':'-'}</div>
                           </>
+                        ) : (
+                          '-' // Vale não tem detalhes extras
                         )}
                       </td>
+
                       <td className="border-b p-2 text-[#535151]">{new Date(l.created_at).toLocaleString('pt-BR')}</td>
                     </tr>
                   ))}

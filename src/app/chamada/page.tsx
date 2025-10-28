@@ -129,53 +129,65 @@ export default function ChamadaPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* HEADER */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#2687e2]">
-            Chamada de Presença — {hoje}
-          </h1>
+       {/* HEADER */}
+<div className="flex items-center justify-between">
+  <h1 className="text-2xl font-bold text-[#2687e2]">
+    Data — {hoje}
+  </h1>
 
-          <div className="flex items-center gap-2">
-            <a
-              href="/"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Inicio
-            </a>
-            <span
-              className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default"
-              aria-current="page"
-              title="Você está em Chamada"
-            >
-              Chamada
-            </span>
-            <a
-              href="/relatorios"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Relatórios de Chamada
-            </a>
-            {/* NOVOS */}
-            <a
-              href="/campanhas"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Campanhas
-            </a>
-            <a
-              href="/campanhas/relatorios"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Rel. campanhas
-            </a>
-            <a
-              href="/login?logout=1"
-              className="rounded-lg bg-gray-500 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
-            >
-              Sair
-            </a>
-          </div>
-        </div>
+  <div className="flex items-center gap-2">
+    <a
+      href="/"
+      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    >
+      Cadastro de Agentes
+    </a>
+
+    <span
+      className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
+      aria-current="page"
+      title="Você está em Chamada"
+    >
+      Chamada
+    </span>
+
+    <a
+      href="/relatorios"
+      className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    >
+      Relatórios de Chamada
+    </a>
+
+    <a
+      href="/campanhas"
+      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    >
+      Campanhas
+    </a>
+
+    <a
+      href="/campanhas/relatorios"
+      className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    >
+      Rel. campanhas
+    </a>
+
+    {/* >>> CORRIGIDO AQUI <<< */}
+    <a
+      href="/erros"
+      className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    >
+      Erros
+    </a>
+
+    <a
+      href="/login?logout=1"
+      className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
+    >
+      Sair
+    </a>
+  </div>
+</div>
 
         {/* GRID 2x2: quatro quadros */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 type Agente = {
@@ -11,16 +12,16 @@ type Agente = {
 
 const statusOptions = [
   { label: 'Ativo', color: '#46a049' },
-  { label: 'Férias', color: '#f19a37' },
-  { label: 'Atestado', color: '#e53935' },
-  { label: 'Folga', color: '#42a5f5' },
-  { label: 'Afastado', color: '#9c27b0' },
-  { label: 'Licença Maternidade', color: '#ff4081' },
-  { label: 'Licença Paternidade', color: '#5c6bc0' },
-  { label: 'Ausente', color: '#757575' },
+ 
 ]
 
 export default function CadastroAgentesPage() {
+  const router = useRouter()
+
+  // Gate de permissão
+  const [authChecked, setAuthChecked] = useState(false)
+  const [allowed, setAllowed] = useState(false)
+
   const [nome, setNome] = useState('')
   const [status, setStatus] = useState('Ativo')
   const [agentes, setAgentes] = useState<Agente[]>([])
@@ -34,8 +35,33 @@ export default function CadastroAgentesPage() {
   const [deletandoId, setDeletandoId] = useState<string | null>(null)
 
   useEffect(() => {
-    carregarAgentes()
+    async function verificarPermissao() {
+      const { data } = await supabase.auth.getSession()
+      const email = data.session?.user?.email
+
+      if (!email) {
+        router.replace('/login?next=' + encodeURIComponent(window.location.pathname))
+        return
+      }
+
+      if (email !== 'supervisao@sonax.net.br') {
+        alert('Acesso restrito à supervisão.')
+        router.replace('/chamada')
+        return
+      }
+
+      setAllowed(true)
+      setAuthChecked(true)
+    }
+    verificarPermissao()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!allowed) return
+    carregarAgentes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed])
 
   async function carregarAgentes() {
     const { data, error } = await supabase
@@ -99,13 +125,10 @@ export default function CadastroAgentesPage() {
       return
     try {
       setDeletandoId(id)
-
       // Se não houver FK com ON DELETE CASCADE, limpe presenças primeiro:
       await supabase.from('presencas').delete().eq('agente_id', id)
-
       const { error } = await supabase.from('agentes').delete().eq('id', id)
       if (error) throw error
-
       await carregarAgentes()
     } catch (e: any) {
       alert('Erro ao excluir: ' + e.message)
@@ -120,6 +143,17 @@ export default function CadastroAgentesPage() {
     )
     return map[s] ?? '#ccc'
   }
+
+  // Enquanto verifica permissão, não mostra conteúdo
+  if (!authChecked && !allowed) {
+    return (
+      <main className="min-h-screen bg-[#f5f6f7] p-8 flex items-center justify-center">
+        <span className="text-gray-600">Verificando permissão…</span>
+      </main>
+    )
+  }
+
+  if (!allowed) return null
 
   return (
     <main className="relative min-h-screen bg-[#f5f6f7] p-8 overflow-hidden">
@@ -145,48 +179,45 @@ export default function CadastroAgentesPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
           <div className="flex gap-2">
-            <span className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default">
-              Inicio
+            <span className="rounded-lg bg-gray-300 px-2 py-1 text-sm font-semibold text-gray-800 cursor-default">
+              Cadastro de Agentes
             </span>
             <a
               href="/chamada"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
             >
               Chamada
             </a>
             <a
               href="/relatorios"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
             >
               Relatórios Chamada
             </a>
-            {/* NOVOS */}
             <a
               href="/campanhas"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
             >
               Campanhas
             </a>
             <a
               href="/campanhas/relatorios"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
             >
               Rel. campanhas
             </a>
-            
             <a
-  href="/erros"
-  className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
->
-  Erros
-</a>
-<a
+              href="/erros"
+              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Erros
+            </a>
+            <a
               href="/login?logout=1"
-              className="rounded-lg bg-gray-500 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+              className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
             >
               Sair
             </a>
-
           </div>
         </div>
 

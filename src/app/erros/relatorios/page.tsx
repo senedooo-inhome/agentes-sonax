@@ -16,21 +16,27 @@ export default function RelatorioErros() {
   const router = useRouter()
 
   // --------- PROTEÇÃO: somente supervisão ----------
-  useEffect(() => {
-    async function verificarPermissao() {
-      const { data } = await supabase.auth.getSession()
-      const email = data.session?.user?.email
-      if (!email) {
-        router.replace('/login?next=' + window.location.pathname)
-        return
-      }
-      if (email !== 'supervisao@sonax.net.br') {
-        alert('Acesso restrito à supervisão.')
-        router.replace('/')
-      }
+useEffect(() => {
+  async function verificarPermissao() {
+    const { data } = await supabase.auth.getSession()
+    const email = data.session?.user?.email
+
+    if (!email) {
+      router.replace('/login?next=' + window.location.pathname)
+      return
     }
-    verificarPermissao()
-  }, [router])
+
+    // Somente supervisão pode acessar relatórios
+    if (email !== 'supervisao@sonax.net.br') {
+      alert('Acesso restrito à supervisão.')
+      router.replace('/')
+    }
+  }
+
+  verificarPermissao()
+}, [router])
+
+
   // --------------------------------------------------
 
   const hoje = new Date().toISOString().slice(0,10)

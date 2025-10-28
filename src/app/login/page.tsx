@@ -5,15 +5,13 @@ import { supabase } from '@/lib/supabaseClient'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')        // sem valores default
-  const [password, setPassword] = useState('')  // sem valores default
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-
   useEffect(() => {
     // Sempre que abrir a tela de login, limpamos qualquer sessão anterior.
-    // Isso garante que sempre tenha que digitar e-mail/senha.
     ;(async () => {
       try {
         await supabase.auth.signOut()
@@ -25,13 +23,24 @@ export default function LoginPage() {
     e.preventDefault()
     setErrorMsg(null)
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
+
     if (error) {
       setErrorMsg(error.message)
       return
     }
-    router.replace('/') // pós-login → Cadastro
+
+    const userEmail = data?.user?.email
+
+    if (userEmail === 'supervisao@sonax.net.br') {
+      router.replace('/chamada')
+    } else if (userEmail === 'sonaxinhome@gmail.com') {
+      router.replace('/chamada')
+    } else {
+      router.replace('/')
+    }
   }
 
   return (

@@ -51,7 +51,7 @@ export default function ErrosFormPage() {
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Erros do Agente</h1>
           <div className="flex gap-2">
-            <a href="/" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Cadastro</a>
+            <a href="/" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Formulario</a>
             <a href="/erros/relatorios" className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">Relatórios</a>
           </div>
         </header>

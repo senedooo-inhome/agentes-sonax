@@ -140,7 +140,7 @@ export default function ChamadaPage() {
               href="/"
               className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
-              Cadastro
+              Inicio
             </a>
             <span
               className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default"
@@ -153,7 +153,7 @@ export default function ChamadaPage() {
               href="/relatorios"
               className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
-              Relatórios
+              Relatórios de Chamada
             </a>
             {/* NOVOS */}
             <a

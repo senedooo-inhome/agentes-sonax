@@ -146,7 +146,7 @@ export default function CadastroAgentesPage() {
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
           <div className="flex gap-2">
             <span className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default">
-              Cadastro
+              Inicio
             </span>
             <a
               href="/chamada"
@@ -158,7 +158,7 @@ export default function CadastroAgentesPage() {
               href="/relatorios"
               className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
-              Relatórios
+              Relatórios Chamada
             </a>
             {/* NOVOS */}
             <a
@@ -173,12 +173,20 @@ export default function CadastroAgentesPage() {
             >
               Rel. campanhas
             </a>
+            
             <a
+  href="/erros"
+  className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+>
+  Erros
+</a>
+<a
               href="/login?logout=1"
               className="rounded-lg bg-gray-500 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
             >
               Sair
             </a>
+
           </div>
         </div>
 

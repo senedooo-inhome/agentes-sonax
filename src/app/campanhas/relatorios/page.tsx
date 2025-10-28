@@ -138,7 +138,7 @@ export default function RelatoriosCampanhas() {
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios — Campanhas</h1>
           <div className="flex gap-2">
-            <a href="/" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Cadastro</a>
+            <a href="/" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Inicio</a>
             <a href="/campanhas" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Formulário</a>
           </div>
         </header>

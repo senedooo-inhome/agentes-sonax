@@ -181,7 +181,7 @@ export default function RelatoriosPage() {
               href="/"
               className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
             >
-              Cadastro
+              Inicio
             </a>
             <a
               href="/chamada"
@@ -192,7 +192,7 @@ export default function RelatoriosPage() {
             <span
               className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default"
             >
-              Relatórios
+              Relatórios de Chamada
             </span>
             <a
               href="/campanhas"

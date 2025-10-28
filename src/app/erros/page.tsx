@@ -10,6 +10,7 @@ export default function ErrosFormPage() {
     data: hoje,
     supervisor: '',
     agente: '',
+    nicho: '',
     tipo: '',
     relato: '',
   })
@@ -20,10 +21,11 @@ export default function ErrosFormPage() {
     if (
       !form.supervisor.trim() ||
       !form.agente.trim() ||
+      !form.nicho.trim() ||
       !form.tipo.trim() ||
       !form.relato.trim()
     ) {
-      alert('Preencha Data, Supervisor, Agente, Tipo e Relato.')
+      alert('Preencha Data, Supervisor, Agente, Nicho, Tipo e Relato.')
       return
     }
 
@@ -34,13 +36,21 @@ export default function ErrosFormPage() {
           data: form.data,
           supervisor: form.supervisor.trim(),
           agente: form.agente.trim(),
+          nicho: form.nicho.trim(),
           tipo: form.tipo.trim(),
           relato: form.relato.trim(),
         },
       ])
       if (error) throw error
       alert('Registro salvo!')
-      setForm({ data: hoje, supervisor: '', agente: '', tipo: '', relato: '' })
+      setForm({
+        data: hoje,
+        supervisor: '',
+        agente: '',
+        nicho: '',
+        tipo: '',
+        relato: '',
+      })
     } catch (err: any) {
       alert('Erro ao salvar: ' + err.message)
     } finally {
@@ -59,6 +69,8 @@ export default function ErrosFormPage() {
     'Falta de atenção Bitrix',
     'Outros',
   ]
+
+  const nichos = ['Clínica', 'SAC']
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-6">
@@ -124,6 +136,25 @@ export default function ErrosFormPage() {
                   placeholder="Ex.: JOANA"
                 />
               </div>
+            </div>
+
+            {/* Novo campo: Nicho */}
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
+                Nicho do agente
+              </label>
+              <select
+                className="w-full rounded-lg border p-2 text-[#535151]"
+                value={form.nicho}
+                onChange={(e) => setForm({ ...form, nicho: e.target.value })}
+              >
+                <option value="">Selecione o nicho</option>
+                {nichos.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

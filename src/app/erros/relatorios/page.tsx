@@ -8,6 +8,7 @@ type LinhaErro = {
   data: string
   supervisor: string
   agente: string
+  nicho: string | null
   tipo: string | null
   relato: string
   created_at: string
@@ -49,9 +50,12 @@ export default function RelatorioErros() {
   const hoje = new Date().toISOString().slice(0,10)
   const [dataIni, setDataIni] = useState(hoje)
   const [dataFim, setDataFim] = useState(hoje)
+
   const [qSupervisor, setQSupervisor] = useState('')
   const [qAgente, setQAgente] = useState('')
+
   const [fTipo, setFTipo] = useState<string>('Todos')
+  const [fNicho, setFNicho] = useState<string>('Todos')   // << novo filtro
 
   const [linhas, setLinhas] = useState<LinhaErro[]>([])
   const [loading, setLoading] = useState(false)
@@ -72,10 +76,10 @@ export default function RelatorioErros() {
   async function buscar() {
     setLoading(true)
     try {
-      // agora selecionamos também o campo 'tipo'
+      // busca já trazendo 'nicho'
       const { data, error } = await supabase
         .from('erros_agentes')
-        .select('id, created_at, data, supervisor, agente, tipo, relato')
+        .select('id, created_at, data, supervisor, agente, nicho, tipo, relato')
         .gte('data', dataIni)
         .lte('data', dataFim)
 
@@ -89,9 +93,14 @@ export default function RelatorioErros() {
       if (qSup) all = all.filter(l => (l.supervisor ?? '').toLowerCase().includes(qSup))
       if (qAgt) all = all.filter(l => (l.agente ?? '').toLowerCase().includes(qAgt))
 
-      // filtro por tipo (se não for "Todos")
+      // filtro por tipo
       if (fTipo !== 'Todos') {
         all = all.filter(l => (l.tipo ?? '') === fTipo)
+      }
+
+      // filtro por nicho  << novo
+      if (fNicho !== 'Todos') {
+        all = all.filter(l => (l.nicho ?? '') === fNicho)
       }
 
       all.sort((a,b)=> a.data===b.data ? a.agente.localeCompare(b.agente) : (a.data < b.data ? 1 : -1))
@@ -108,9 +117,15 @@ export default function RelatorioErros() {
   function csvEscape(v: any) { return `"${String(v ?? '').replace(/"/g,'""')}"` }
   function exportarCSV() {
     if (!linhas.length) { alert('Sem dados.'); return }
-    const headers = ['Data','Supervisor','Agente','Tipo','Relato','Criado em']
+    // inclui Nicho no CSV
+    const headers = ['Data','Supervisor','Agente','Nicho','Tipo','Relato','Criado em']
     const rows = linhas.map(l => [
-      l.data, l.supervisor, l.agente, l.tipo ?? '', l.relato,
+      l.data,
+      l.supervisor,
+      l.agente,
+      l.nicho ?? '',
+      l.tipo ?? '',
+      l.relato,
       new Date(l.created_at).toLocaleString('pt-BR')
     ].map(csvEscape).join(';'))
     const conteudo = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n')
@@ -135,7 +150,7 @@ export default function RelatorioErros() {
 
         {/* Filtros */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data inicial</label>
               <input type="date" value={dataIni} onChange={e=>setDataIni(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"/>
@@ -161,6 +176,18 @@ export default function RelatorioErros() {
               >
                 <option value="Todos">Todos</option>
                 {TIPOS_ERRO.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Nicho</label>
+              <select
+                value={fNicho}
+                onChange={e=>setFNicho(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
+                <option value="Todos">Todos</option>
+                <option value="Clínica">Clínica</option>
+                <option value="SAC">SAC</option>
               </select>
             </div>
           </div>
@@ -195,6 +222,7 @@ export default function RelatorioErros() {
                     <th className="border-b p-2">Data</th>
                     <th className="border-b p-2">Supervisor</th>
                     <th className="border-b p-2">Agente</th>
+                    <th className="border-b p-2">Nicho</th>{/* nova coluna */}
                     <th className="border-b p-2">Tipo</th>
                     <th className="border-b p-2">Relato</th>
                     <th className="border-b p-2">Criado em</th>
@@ -206,6 +234,7 @@ export default function RelatorioErros() {
                       <td className="border-b p-2 text-[#535151]">{l.data}</td>
                       <td className="border-b p-2 text-[#535151]">{l.supervisor}</td>
                       <td className="border-b p-2 text-[#535151]">{l.agente}</td>
+                      <td className="border-b p-2 text-[#535151]">{l.nicho ?? '-'}</td>
                       <td className="border-b p-2 text-[#535151]">{l.tipo ?? '-'}</td>
                       <td className="border-b p-2 text-[#535151] whitespace-pre-line">{l.relato}</td>
                       <td className="border-b p-2 text-[#535151]">{new Date(l.created_at).toLocaleString('pt-BR')}</td>

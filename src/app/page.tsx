@@ -198,27 +198,34 @@ export default function CadastroAgentesPage() {
               href="/campanhas"
               className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
             >
-              Campanhas
-            </a>
-            <a
-              href="/campanhas/relatorios"
-              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Rel. campanhas
-            </a>
-            <a
-              href="/erros"
-              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Erros
-            </a>
-            <a
-              href="/login?logout=1"
-              className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-            >
-              Sair
-            </a>
-          </div>
+               Campanhas
+  </a>
+  <a
+    href="/campanhas/relatorios"
+    className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Rel. campanhas
+  </a>
+  <a
+    href="/erros"
+    className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Erros
+  </a>
+  <a
+    href="/atestados"
+    className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Atestados
+  </a>
+  <a
+    href="/login?logout=1"
+    className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
+  >
+    Sair
+  </a>
+</div>
+
         </div>
 
         {/* COLUNAS */}

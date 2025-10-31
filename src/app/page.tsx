@@ -12,7 +12,6 @@ type Agente = {
 
 const statusOptions = [
   { label: 'Ativo', color: '#46a049' },
- 
 ]
 
 export default function CadastroAgentesPage() {
@@ -125,7 +124,7 @@ export default function CadastroAgentesPage() {
       return
     try {
       setDeletandoId(id)
-      // Se não houver FK com ON DELETE CASCADE, limpe presenças primeiro:
+      // limpar presenças ligadas a esse agente
       await supabase.from('presencas').delete().eq('agente_id', id)
       const { error } = await supabase.from('agentes').delete().eq('id', id)
       if (error) throw error
@@ -178,59 +177,71 @@ export default function CadastroAgentesPage() {
         {/* HEADER de navegação */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
+
           <div className="flex items-center gap-2 flex-wrap">
-  <a
-    href="/"
-    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-  >
-    Início
-  </a>
+            {/* Início */}
+            <a
+              href="/"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Início
+            </a>
 
-  <a
-    href="/chamada"
-    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-  >
-    Chamada
-  </a>
+            {/* Chamada */}
+            <a
+              href="/chamada"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Chamada
+            </a>
 
-  <a
-    href="/campanhas"
-    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-  >
-    Campanhas
-  </a>
-
-   <a
+            {/* Campanhas + Rel. campanhas */}
+            <a
+              href="/campanhas"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Campanhas
+            </a>
+            <a
               href="/campanhas/relatorios"
               className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
             >
               Rel. campanhas
             </a>
-          
 
-  <a
-    href="/erros"
-    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-  >
-    Erros
-  </a>
+            {/* Erros */}
+            <a
+              href="/erros"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Erros
+            </a>
 
-  <a
-    href="/advertencias"
-    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-  >
-    Advertências
-  </a>
+            {/* Advertências */}
+            <a
+              href="/advertencias"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Advertências
+            </a>
 
-  <a
-    href="/login?logout=1"
-    className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-  >
-    Sair
-  </a>
-</div>
+            {/* Atestados + Rel. atestados */}
+            <a
+              href="/atestados"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Atestados
+            </a>
+        
 
-
+            {/* Sair */}
+            <a
+              href="/login?logout=1"
+              className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
+            >
+              Sair
+            </a>
+          </div>
         </div>
 
         {/* COLUNAS */}

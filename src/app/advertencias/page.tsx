@@ -190,6 +190,13 @@ export default function AdvertenciasPage() {
             >
               Rel. advertências
             </a>
+             {/* Atestados + Rel. atestados */}
+            <a
+              href="/atestados"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Atestados
+            </a>
 
             <a
               href="/login?logout=1"

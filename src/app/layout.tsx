@@ -13,13 +13,14 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Sonax In Home - Chamada de Agentes",
-  description: "Sistema interno de gestão de presença Sonax In Home",
+export const metadata = {
+  title: 'Sonax In Home',
+  description: 'Painel interno Sonax',
   icons: {
-    icon: "/icon.png", // esse é o novo favicon
+    icon: '/favicon.png',
   },
-};
+}
+
 
 export default function RootLayout({
   children,
@@ -29,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
-        <link rel="icon" href="/icon.png" type="image/png" />
+        <link rel="icon" href="/favicon.png" type="image/png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

@@ -77,20 +77,58 @@ export default function ErrosFormPage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Erros do Agente</h1>
-          <div className="flex gap-2">
-            <a
-              href="/"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Formulário
-            </a>
-            <a
-              href="/erros/relatorios"
-              className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-            >
-              Relatórios
-            </a>
-          </div>
+    <div className="flex items-center gap-2 flex-wrap">
+  <a
+    href="/"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Início
+  </a>
+
+  <a
+    href="/chamada"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Chamada
+  </a>
+
+  <a
+    href="/campanhas"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Campanhas
+  </a>
+
+  <span
+    className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
+    aria-current="page"
+    title="Você está em Erros"
+  >
+    Erros
+  </span>
+
+  <a
+    href="/erros/relatorios"
+    className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+  >
+    Rel. erros
+  </a>
+
+  <a
+    href="/advertencias"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Advertências
+  </a>
+
+  <a
+    href="/login?logout=1"
+    className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
+  >
+    Sair
+  </a>
+</div>
+
         </header>
 
         <div className="rounded-xl bg-white p-6 shadow space-y-4">

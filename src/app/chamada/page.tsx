@@ -135,58 +135,59 @@ export default function ChamadaPage() {
     Data — {hoje}
   </h1>
 
-  <div className="flex items-center gap-2">
-    <a
-      href="/"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Cadastro de Agentes
-    </a>
+ <div className="flex items-center gap-2 flex-wrap">
+  <a
+    href="/"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Início
+  </a>
 
-    <span
-      className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
-      aria-current="page"
-      title="Você está em Chamada"
-    >
-      Chamada
-    </span>
+  <span
+    className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
+    aria-current="page"
+    title="Você está em Chamada"
+  >
+    Chamada
+  </span>
 
-    <a
-      href="/relatorios"
-      className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Relatórios de Chamada
-    </a>
+  <a
+    href="/relatorios"
+    className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+  >
+    Relatórios de Chamada
+  </a>
 
-    <a
-      href="/campanhas"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Campanhas
-    </a>
+  <a
+    href="/campanhas"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Campanhas
+  </a>
 
-    <a
-      href="/campanhas/relatorios"
-      className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Rel. campanhas
-    </a>
+  <a
+    href="/erros"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Erros
+  </a>
 
-    {/* >>> CORRIGIDO AQUI <<< */}
-    <a
-      href="/erros"
-      className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Erros
-    </a>
+  <a
+    href="/advertencias"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Advertências
+  </a>
 
-    <a
-      href="/login?logout=1"
-      className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-    >
-      Sair
-    </a>
-  </div>
+  <a
+    href="/login?logout=1"
+    className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
+  >
+    Sair
+  </a>
+</div>
+
+
 </div>
 
         {/* GRID 2x2: quatro quadros */}

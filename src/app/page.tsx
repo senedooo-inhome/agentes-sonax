@@ -178,46 +178,50 @@ export default function CadastroAgentesPage() {
         {/* HEADER de navegação */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
-          <div className="flex gap-2">
-            <span className="rounded-lg bg-gray-300 px-2 py-1 text-sm font-semibold text-gray-800 cursor-default">
-              Cadastro de Agentes
-            </span>
-            <a
-              href="/chamada"
-              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Chamada
-            </a>
-            <a
-              href="/relatorios"
-              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Relatórios Chamada
-            </a>
-            <a
-              href="/campanhas"
-              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-               Campanhas
-  </a>
+          <div className="flex items-center gap-2 flex-wrap">
   <a
-    href="/campanhas/relatorios"
-    className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    href="/"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
   >
-    Rel. campanhas
+    Início
   </a>
+
+  <a
+    href="/chamada"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Chamada
+  </a>
+
+  <a
+    href="/campanhas"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+  >
+    Campanhas
+  </a>
+
+   <a
+              href="/campanhas/relatorios"
+              className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+            >
+              Rel. campanhas
+            </a>
+          
+
   <a
     href="/erros"
-    className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
   >
     Erros
   </a>
+
   <a
-    href="/atestados"
-    className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+    href="/advertencias"
+    className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
   >
-    Atestados
+    Advertências
   </a>
+
   <a
     href="/login?logout=1"
     className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
@@ -225,6 +229,7 @@ export default function CadastroAgentesPage() {
     Sair
   </a>
 </div>
+
 
         </div>
 

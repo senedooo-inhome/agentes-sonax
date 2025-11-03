@@ -232,7 +232,21 @@ export default function CadastroAgentesPage() {
             >
               Atestados
             </a>
-        
+        {/* --- LIGAÇÕES ATIVAS --- */}
+<a
+  href="/ligacoes"
+  className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+>
+  Ligações Ativas
+</a>
+
+<a
+  href="/ligacoes/relatorios"
+  className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+>
+  Rel. ligações
+</a>
+
 
             {/* Sair */}
             <a

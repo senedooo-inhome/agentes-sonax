@@ -129,81 +129,87 @@ export default function ChamadaPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-       {/* HEADER */}
-<div className="flex items-center justify-between">
-  <h1 className="text-2xl font-bold text-[#2687e2]">
-    Data — {hoje}
-  </h1>
+        {/* HEADER */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-[#2687e2]">
+            Data — {hoje}
+          </h1>
 
-  <div className="flex items-center gap-2 flex-wrap">
-    {/* Início */}
-    <a
-      href="/"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Início
-    </a>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Início */}
+            <a
+              href="/"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Início
+            </a>
 
-    {/* Chamada (página atual) */}
-    <span
-      className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
-      aria-current="page"
-      title="Você está em Chamada"
-    >
-      Chamada
-    </span>
+            {/* Chamada (página atual) */}
+            <span
+              className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
+              aria-current="page"
+              title="Você está em Chamada"
+            >
+              Chamada
+            </span>
 
-    {/* Relatórios de Chamada */}
-    <a
-      href="/relatorios"
-      className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-    >
-      Relatórios de Chamada
-    </a>
+            {/* Relatório de Chamada — só aqui */}
+            <a
+              href="/relatorios"
+              className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+            >
+              Relatórios de Chamada
+            </a>
 
-    {/* Campanhas */}
-    <a
-      href="/campanhas"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Campanhas
-    </a>
+            {/* Campanhas */}
+            <a
+              href="/campanhas"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Campanhas
+            </a>
 
-    {/* Erros */}
-    <a
-      href="/erros"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Erros
-    </a>
+            {/* Erros */}
+            <a
+              href="/erros"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Erros
+            </a>
 
-    {/* Advertências */}
-    <a
-      href="/advertencias"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Advertências
-    </a>
+            {/* Advertências */}
+            <a
+              href="/advertencias"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Advertências
+            </a>
 
-    {/* Atestados */}
-    <a
-      href="/atestados"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Atestados
-   
-    </a>
+            {/* Atestados */}
+            <a
+              href="/atestados"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Atestados
+            </a>
 
-    {/* Sair */}
-    <a
-      href="/login?logout=1"
-      className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-    >
-      Sair
-    </a>
-  </div>
-</div>
+            {/* Ligações (sem relatório aqui) */}
+            <a
+              href="/ligacoes"
+              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Ligações Ativas
+            </a>
 
+            {/* Sair */}
+            <a
+              href="/login?logout=1"
+              className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
+            >
+              Sair
+            </a>
+          </div>
+        </div>
 
         {/* GRID 2x2: quatro quadros */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

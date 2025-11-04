@@ -13,6 +13,7 @@ export default function CampanhasPage() {
   const [elogioForm, setElogioForm] = useState({
     data: hoje,
     nicho: 'SAC' as Nicho,
+    tipo_elogio: '',           // 👈 novo campo
     nome: '',
     empresa: '',
     telefone_protocolo: '',
@@ -22,6 +23,7 @@ export default function CampanhasPage() {
 
   async function enviarElogio(e: React.FormEvent) {
     e.preventDefault()
+    if (!elogioForm.tipo_elogio) { alert('Selecione o tipo de elogio (Ligação ou Chat).'); return }
     if (!elogioForm.nome.trim()) { alert('Informe o nome.'); return }
     if (!elogioForm.elogio.trim()) { alert('Descreva o elogio.'); return }
     try {
@@ -29,6 +31,7 @@ export default function CampanhasPage() {
       const { error } = await supabase.from('campanha_elogio').insert([{
         data: elogioForm.data,
         nicho: elogioForm.nicho,
+        tipo_elogio: elogioForm.tipo_elogio, // 👈 salvando
         nome: elogioForm.nome.trim(),
         empresa: elogioForm.empresa.trim() || null,
         telefone_protocolo: elogioForm.telefone_protocolo.trim() || null,
@@ -36,7 +39,15 @@ export default function CampanhasPage() {
       }])
       if (error) throw error
       alert('Elogio enviado com sucesso!')
-      setElogioForm({ data: hoje, nicho: 'SAC', nome: '', empresa: '', telefone_protocolo: '', elogio: '' })
+      setElogioForm({
+        data: hoje,
+        nicho: 'SAC',
+        tipo_elogio: '',
+        nome: '',
+        empresa: '',
+        telefone_protocolo: '',
+        elogio: ''
+      })
     } catch (err:any) {
       alert('Erro ao enviar: ' + err.message)
     } finally {
@@ -75,9 +86,14 @@ export default function CampanhasPage() {
       if (error) throw error
       alert('Resposta enviada! Obrigado 🙂')
       setRecForm({
-        data: hoje, nicho: 'Clínica', nome: '',
-        empresas_prioridade: '', empresas_dificuldade: '',
-        preparado: 'Sim', preferencia_horario: 'Semana após 18:00', duas_no_mesmo_dia: 'Não'
+        data: hoje,
+        nicho: 'Clínica',
+        nome: '',
+        empresas_prioridade: '',
+        empresas_dificuldade: '',
+        preparado: 'Sim',
+        preferencia_horario: 'Semana após 18:00',
+        duas_no_mesmo_dia: 'Não'
       })
     } catch (err:any) {
       alert('Erro ao enviar: ' + err.message)
@@ -159,54 +175,98 @@ export default function CampanhasPage() {
             </p>
 
             <form onSubmit={enviarElogio} className="space-y-4">
+              {/* Data */}
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
-                <input type="date" value={elogioForm.data}
+                <input
+                  type="date"
+                  value={elogioForm.data}
                   onChange={e=>setElogioForm({...elogioForm, data:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-[#535151]"/>
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
               </div>
 
+              {/* Tipo de elogio + Nome */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
-                  <select value={elogioForm.nicho}
-                    onChange={e=>setElogioForm({...elogioForm, nicho: e.target.value as Nicho})}
-                    className="w-full rounded-lg border p-2 text-[#535151]">
-                    {['SAC','Clínica'].map(n=><option key={n} value={n}>{n}</option>)}
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Tipo de elogio</label>
+                  <select
+                    value={elogioForm.tipo_elogio}
+                    onChange={e=>setElogioForm({...elogioForm, tipo_elogio: e.target.value})}
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                  >
+                    <option value="">Selecione</option>
+                    <option value="Ligação">Ligação</option>
+                    <option value="Chat">Chat</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nome</label>
-                  <input type="text" value={elogioForm.nome}
+                  <input
+                    type="text"
+                    value={elogioForm.nome}
                     onChange={e=>setElogioForm({...elogioForm, nome:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Seu nome"/>
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                    placeholder="Seu nome"
+                  />
                 </div>
               </div>
 
+              {/* Nicho + Empresa / Protocolo */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Empresa</label>
-                  <input type="text" value={elogioForm.empresa}
-                    onChange={e=>setElogioForm({...elogioForm, empresa:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Opcional"/>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
+                  <select
+                    value={elogioForm.nicho}
+                    onChange={e=>setElogioForm({...elogioForm, nicho: e.target.value as Nicho})}
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                  >
+                    {['SAC','Clínica'].map(n=>(
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Telefone ou Protocolo</label>
-                  <input type="text" value={elogioForm.telefone_protocolo}
-                    onChange={e=>setElogioForm({...elogioForm, telefone_protocolo:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Opcional"/>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Empresa</label>
+                  <input
+                    type="text"
+                    value={elogioForm.empresa}
+                    onChange={e=>setElogioForm({...elogioForm, empresa:e.target.value})}
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                    placeholder="Opcional"
+                  />
                 </div>
               </div>
 
+              {/* Telefone / protocolo */}
               <div>
-                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Qual foi o elogio?</label>
-                <textarea rows={4} value={elogioForm.elogio}
-                  onChange={e=>setElogioForm({...elogioForm, elogio:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Descreva o elogio recebido"/>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Telefone ou Protocolo</label>
+                <input
+                  type="text"
+                  value={elogioForm.telefone_protocolo}
+                  onChange={e=>setElogioForm({...elogioForm, telefone_protocolo:e.target.value})}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                  placeholder="Opcional"
+                />
               </div>
 
-              <button type="submit" disabled={enviandoElogio}
-                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
+              {/* Descrição do elogio */}
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Qual foi o elogio?</label>
+                <textarea
+                  rows={4}
+                  value={elogioForm.elogio}
+                  onChange={e=>setElogioForm({...elogioForm, elogio:e.target.value})}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                  placeholder="Descreva o elogio recebido"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={enviandoElogio}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
                 {enviandoElogio ? 'Enviando…' : 'Enviar'}
               </button>
             </form>
@@ -223,25 +283,36 @@ export default function CampanhasPage() {
             <form onSubmit={enviarReciclagem} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
-                <input type="date" value={recForm.data}
+                <input
+                  type="date"
+                  value={recForm.data}
                   onChange={e=>setRecForm({...recForm, data:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-[#535151]"/>
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
-                  <select value={recForm.nicho}
+                  <select
+                    value={recForm.nicho}
                     onChange={e=>setRecForm({...recForm, nicho: e.target.value as Nicho})}
-                    className="w-full rounded-lg border p-2 text-[#535151]">
-                    {['Clínica','SAC'].map(n=><option key={n} value={n}>{n}</option>)}
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                  >
+                    {['Clínica','SAC'].map(n=>(
+                      <option key={n} value={n}>{n}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Seu nome</label>
-                  <input type="text" value={recForm.nome}
+                  <input
+                    type="text"
+                    value={recForm.nome}
                     onChange={e=>setRecForm({...recForm, nome:e.target.value})}
-                    className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Seu nome"/>
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                    placeholder="Seu nome"
+                  />
                 </div>
               </div>
 
@@ -249,18 +320,26 @@ export default function CampanhasPage() {
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Empresa(s) com prioridade (pode informar mais de uma)
                 </label>
-                <input type="text" value={recForm.empresas_prioridade}
+                <input
+                  type="text"
+                  value={recForm.empresas_prioridade}
                   onChange={e=>setRecForm({...recForm, empresas_prioridade:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Separe por vírgulas"/>
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                  placeholder="Separe por vírgulas"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Dentro do nicho escolhido, em quais empresas tem mais dificuldade?
                 </label>
-                <input type="text" value={recForm.empresas_dificuldade}
+                <input
+                  type="text"
+                  value={recForm.empresas_dificuldade}
                   onChange={e=>setRecForm({...recForm, empresas_dificuldade:e.target.value})}
-                  className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Separe por vírgulas"/>
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                  placeholder="Separe por vírgulas"
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -269,7 +348,12 @@ export default function CampanhasPage() {
                   <div className="flex gap-3">
                     {(['Sim','Não'] as const).map(v=>(
                       <label key={v} className="flex items-center gap-2 text-sm">
-                        <input type="radio" name="preparado" checked={recForm.preparado===v} onChange={()=>setRecForm({...recForm, preparado:v})}/>
+                        <input
+                          type="radio"
+                          name="preparado"
+                          checked={recForm.preparado===v}
+                          onChange={()=>setRecForm({...recForm, preparado:v})}
+                        />
                         <span className="text-[#535151]">{v}</span>
                       </label>
                     ))}
@@ -278,10 +362,14 @@ export default function CampanhasPage() {
 
                 <div>
                   <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Preferência para agendamento</label>
-                  <select value={recForm.preferencia_horario}
+                  <select
+                    value={recForm.preferencia_horario}
                     onChange={e=>setRecForm({...recForm, preferencia_horario:e.target.value as any})}
-                    className="w-full rounded-lg border p-2 text-[#535151]">
-                    {['Semana após 18:00','Final de semana'].map(v=><option key={v} value={v}>{v}</option>)}
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                  >
+                    {['Semana após 18:00','Final de semana'].map(v=>(
+                      <option key={v} value={v}>{v}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -290,7 +378,12 @@ export default function CampanhasPage() {
                   <div className="flex gap-3">
                     {(['Sim','Não'] as const).map(v=>(
                       <label key={v} className="flex items-center gap-2 text-sm">
-                        <input type="radio" name="duas" checked={recForm.duas_no_mesmo_dia===v} onChange={()=>setRecForm({...recForm, duas_no_mesmo_dia:v})}/>
+                        <input
+                          type="radio"
+                          name="duas"
+                          checked={recForm.duas_no_mesmo_dia===v}
+                          onChange={()=>setRecForm({...recForm, duas_no_mesmo_dia:v})}
+                        />
                         <span className="text-[#535151]">{v}</span>
                       </label>
                     ))}
@@ -298,8 +391,11 @@ export default function CampanhasPage() {
                 </div>
               </div>
 
-              <button type="submit" disabled={enviandoRec}
-                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
+              <button
+                type="submit"
+                disabled={enviandoRec}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
                 {enviandoRec ? 'Enviando…' : 'Enviar'}
               </button>
             </form>
@@ -312,7 +408,6 @@ export default function CampanhasPage() {
               <div className="text-sm">
                 <p>⚠ <b>Atenção!</b> Leia atentamente as REGRAS antes de solicitar:</p>
                 <ul className="list-disc pl-5 mt-1">
-                
                   <li>✅ Valor máximo de <b>30% do salário</b>.</li>
                   <li>✅ Pedido até o <b>dia 14</b> de cada mês (verificar se não cai no fim de semana).</li>
                   <li>✅ O desconto será feito em <b>parcela única (1x)</b>.</li>
@@ -374,8 +469,11 @@ export default function CampanhasPage() {
                 </label>
               </div>
 
-              <button type="submit" disabled={enviandoVale}
-                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
+              <button
+                type="submit"
+                disabled={enviandoVale}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
                 {enviandoVale ? 'Enviando…' : 'Solicitar Vale'}
               </button>
             </form>

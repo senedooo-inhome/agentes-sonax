@@ -7,9 +7,10 @@ type Linha = {
   id: string
   campanha: 'Elogio Premiado' | 'Reciclagem' | 'Vale'
   data: string
-  nicho?: 'SAC' | 'Clínica' | '-'         // Vale não tem nicho → '-'
+  nicho?: 'SAC' | 'Clínica' | '-'   // Vale não tem nicho → '-'
   nome: string
   // Elogio
+  tipo_elogio?: string | null        // 👈 novo
   empresa?: string | null
   telefone_protocolo?: string | null
   elogio?: string | null
@@ -52,12 +53,16 @@ export default function RelatoriosCampanhas() {
   const [dataFim, setDataFim] = useState(hoje)
   const [fNicho, setFNicho] = useState<string>('Todos')
   const [fCampanha, setFCampanha] = useState<string>('Todas')
+  const [fTipoElogio, setFTipoElogio] = useState<'Todos' | 'Ligação' | 'Chat'>('Todos') // 👈 novo filtro
   const [qNome, setQNome] = useState('')
 
   const [linhas, setLinhas] = useState<Linha[]>([])
   const [loading, setLoading] = useState(false)
 
-  function atalhoHoje(){ const d = new Date().toISOString().slice(0,10); setDataIni(d); setDataFim(d) }
+  function atalhoHoje(){
+    const d = new Date().toISOString().slice(0,10)
+    setDataIni(d); setDataFim(d)
+  }
   function atalhoSemana() {
     const d = new Date(); const dow = d.getDay() || 7
     const ini = new Date(d); ini.setDate(d.getDate() - (dow-1))
@@ -65,7 +70,8 @@ export default function RelatoriosCampanhas() {
     setDataIni(ini.toISOString().slice(0,10)); setDataFim(fim.toISOString().slice(0,10))
   }
   function atalhoMes() {
-    const d = new Date(); const ini = new Date(d.getFullYear(), d.getMonth(), 1)
+    const d = new Date()
+    const ini = new Date(d.getFullYear(), d.getMonth(), 1)
     const fim = new Date(d.getFullYear(), d.getMonth()+1, 0)
     setDataIni(ini.toISOString().slice(0,10)); setDataFim(fim.toISOString().slice(0,10))
   }
@@ -73,10 +79,10 @@ export default function RelatoriosCampanhas() {
   async function buscar() {
     setLoading(true)
     try {
-      // ELOGIOS
+      // ELOGIOS (já trazendo tipo_elogio)
       const elogiosQ = supabase
         .from('campanha_elogio')
-        .select('id, created_at, data, nicho, nome, empresa, telefone_protocolo, elogio')
+        .select('id, created_at, data, nicho, nome, empresa, telefone_protocolo, elogio, tipo_elogio')
         .gte('data', dataIni).lte('data', dataFim)
 
       // RECICLAGENS
@@ -102,17 +108,36 @@ export default function RelatoriosCampanhas() {
       if (e3) throw e3
 
       const L1: Linha[] = (elogios ?? []).map((r:any)=>({
-        id: r.id, campanha: 'Elogio Premiado', data: r.data, nicho: r.nicho, nome: r.nome,
-        empresa: r.empresa, telefone_protocolo: r.telefone_protocolo, elogio: r.elogio, created_at: r.created_at
+        id: r.id,
+        campanha: 'Elogio Premiado',
+        data: r.data,
+        nicho: r.nicho,
+        nome: r.nome,
+        tipo_elogio: r.tipo_elogio ?? null, // 👈 guardando
+        empresa: r.empresa,
+        telefone_protocolo: r.telefone_protocolo,
+        elogio: r.elogio,
+        created_at: r.created_at
       }))
       const L2: Linha[] = (recs ?? []).map((r:any)=>({
-        id: r.id, campanha: 'Reciclagem', data: r.data, nicho: r.nicho, nome: r.nome,
-        empresas_prioridade: r.empresas_prioridade, empresas_dificuldade: r.empresas_dificuldade,
-        preparado: r.preparado, preferencia_horario: r.preferencia_horario, duas_no_mesmo_dia: r.duas_no_mesmo_dia,
+        id: r.id,
+        campanha: 'Reciclagem',
+        data: r.data,
+        nicho: r.nicho,
+        nome: r.nome,
+        empresas_prioridade: r.empresas_prioridade,
+        empresas_dificuldade: r.empresas_dificuldade,
+        preparado: r.preparado,
+        preferencia_horario: r.preferencia_horario,
+        duas_no_mesmo_dia: r.duas_no_mesmo_dia,
         created_at: r.created_at
       }))
       const L3: Linha[] = (vales ?? []).map((r:any)=>({
-        id: r.id, campanha: 'Vale', data: r.data, nicho: '-', nome: r.nome,
+        id: r.id,
+        campanha: 'Vale',
+        data: r.data,
+        nicho: '-',
+        nome: r.nome,
         valor: typeof r.valor === 'number' ? r.valor : (r.valor ? Number(r.valor) : null),
         ciente: r.ciente,
         created_at: r.created_at
@@ -120,11 +145,19 @@ export default function RelatoriosCampanhas() {
 
       let all = [...L1, ...L2, ...L3]
 
-      // Filtros
+      // Filtros de campanha/nicho/nome
       if (fCampanha !== 'Todas') all = all.filter(l => l.campanha === fCampanha as any)
       if (fNicho !== 'Todos')   all = all.filter(l => l.nicho === fNicho)
       const nq = qNome.trim().toLowerCase()
       if (nq) all = all.filter(l => l.nome.toLowerCase().includes(nq))
+
+      // 👇 filtro de tipo de elogio: aplica só em Elogio Premiado
+      if (fTipoElogio !== 'Todos') {
+        all = all.filter(l => {
+          if (l.campanha !== 'Elogio Premiado') return true // não filtra os outros
+          return (l.tipo_elogio ?? '').toLowerCase() === fTipoElogio.toLowerCase()
+        })
+      }
 
       // Ordenação: data desc, depois nome
       all.sort((a,b)=> a.data===b.data ? a.nome.localeCompare(b.nome) : (a.data < b.data ? 1 : -1))
@@ -138,11 +171,13 @@ export default function RelatoriosCampanhas() {
 
   useEffect(()=>{ buscar() }, [])
 
+  // CSV
   function csvEscape(v: any) { return `"${String(v ?? '').replace(/"/g,'""')}"` }
   function exportarCSV() {
     if (!linhas.length) { alert('Sem dados.'); return }
     const headers = [
       'Campanha','Data','Nicho','Nome',
+      'Tipo de elogio',              // 👈 novo cabeçalho
       'Empresa','Telefone/Protocolo','Elogio',
       'Empresas prioridade','Empresas dificuldade','Preparado','Preferência','Duas no mesmo dia',
       'Valor','Ciente',
@@ -153,6 +188,7 @@ export default function RelatoriosCampanhas() {
       l.data,
       l.nicho ?? '',
       l.nome,
+      l.campanha === 'Elogio Premiado' ? (l.tipo_elogio ?? '') : '',   // 👈 só pros elogios
       // Elogio
       l.empresa ?? '',
       l.telefone_protocolo ?? '',
@@ -184,53 +220,130 @@ export default function RelatoriosCampanhas() {
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios — Campanhas</h1>
           <div className="flex gap-2">
-            <a href="/" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Inicio</a>
-            <a href="/campanhas" className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600">Formulário</a>
+            <a
+              href="/"
+              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Inicio
+            </a>
+            <a
+              href="/campanhas"
+              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
+            >
+              Formulário
+            </a>
           </div>
         </header>
 
         {/* Filtros */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data inicial</label>
-              <input type="date" value={dataIni} onChange={e=>setDataIni(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"/>
+              <input
+                type="date"
+                value={dataIni}
+                onChange={e=>setDataIni(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data final</label>
-              <input type="date" value={dataFim} onChange={e=>setDataFim(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60"/>
+              <input
+                type="date"
+                value={dataFim}
+                onChange={e=>setDataFim(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Nicho</label>
-              <select value={fNicho} onChange={e=>setFNicho(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151]">
+              <select
+                value={fNicho}
+                onChange={e=>setFNicho(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
                 {['Todos','SAC','Clínica'].map(n=><option key={n} value={n}>{n}</option>)}
               </select>
-              <p className="text-[11px] text-gray-500 mt-1">* Registros da campanha Vale aparecem apenas quando Nicho = “Todos”.</p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                * Registros da campanha Vale aparecem apenas quando Nicho = “Todos”.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Campanha</label>
-              <select value={fCampanha} onChange={e=>setFCampanha(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151]">
+              <select
+                value={fCampanha}
+                onChange={e=>setFCampanha(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
                 {['Todas','Elogio Premiado','Reciclagem','Vale'].map(c=><option key={c} value={c}>{c}</option>)}
               </select>
+            </div>
+            {/* Filtro novo */}
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">
+                Tipo de elogio
+              </label>
+              <select
+                value={fTipoElogio}
+                onChange={e=>setFTipoElogio(e.target.value as any)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              >
+                <option value="Todos">Todos</option>
+                <option value="Ligação">Ligação</option>
+                <option value="Chat">Chat</option>
+              </select>
+              <p className="text-[11px] text-gray-400">
+                (Só afeta “Elogio Premiado”)
+              </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-end gap-3">
             <div className="grow">
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Filtrar por Nome</label>
-              <input type="text" value={qNome} onChange={e=>setQNome(e.target.value)} className="w-full rounded-lg border p-2 text-[#535151] placeholder-[#535151]/60" placeholder="Digite o nome"/>
+              <input
+                type="text"
+                value={qNome}
+                onChange={e=>setQNome(e.target.value)}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+                placeholder="Digite o nome"
+              />
             </div>
             <div className="flex gap-2">
-              <button onClick={atalhoHoje}   className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">Hoje</button>
-              <button onClick={atalhoSemana} className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">Semana</button>
-              <button onClick={atalhoMes}    className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">Mês</button>
+              <button
+                onClick={atalhoHoje}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
+                Hoje
+              </button>
+              <button
+                onClick={atalhoSemana}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
+                Semana
+              </button>
+              <button
+                onClick={atalhoMes}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
+                Mês
+              </button>
             </div>
 
             <div className="ml-auto flex gap-2">
-              <button onClick={buscar} disabled={loading} className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
+              <button
+                onClick={buscar}
+                disabled={loading}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
                 {loading ? 'Buscando…' : 'Aplicar filtros'}
               </button>
-              <button onClick={exportarCSV} disabled={!linhas.length} className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-40">
+              <button
+                onClick={exportarCSV}
+                disabled={!linhas.length}
+                className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-40"
+              >
                 Exportar CSV
               </button>
             </div>
@@ -258,7 +371,12 @@ export default function RelatoriosCampanhas() {
                 <tbody>
                   {linhas.map(l=>(
                     <tr key={`${l.campanha}-${l.id}`} className="text-sm">
-                      <td className="border-b p-2 text-[#535151]">{l.campanha}</td>
+                      <td className="border-b p-2 text-[#535151]">
+                        {l.campanha}
+                        {l.campanha === 'Elogio Premiado' && l.tipo_elogio ? (
+                          <div className="text-[11px] text-gray-400">({l.tipo_elogio})</div>
+                        ) : null}
+                      </td>
                       <td className="border-b p-2 text-[#535151]">{l.data}</td>
                       <td className="border-b p-2 text-[#535151]">{l.nicho ?? '-'}</td>
                       <td className="border-b p-2 text-[#535151] font-medium">{l.nome}</td>
@@ -266,19 +384,36 @@ export default function RelatoriosCampanhas() {
                       <td className="border-b p-2 text-[#535151]">
                         {l.campanha==='Elogio Premiado' ? (
                           <>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Empresa:</span> {l.empresa ?? '-'}</div>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Fone/Protocolo:</span> {l.telefone_protocolo ?? '-'}</div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Tipo:</span> {l.tipo_elogio ?? '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Empresa:</span> {l.empresa ?? '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Fone/Protocolo:</span> {l.telefone_protocolo ?? '-'}
+                            </div>
                           </>
                         ) : l.campanha==='Reciclagem' ? (
                           <>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Preferência:</span> {l.preferencia_horario ?? '-'}</div>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Duas no mesmo dia:</span> {l.duas_no_mesmo_dia===true?'Sim':l.duas_no_mesmo_dia===false?'Não':'-'}</div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Preferência:</span> {l.preferencia_horario ?? '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Duas no mesmo dia:</span> {l.duas_no_mesmo_dia===true?'Sim':l.duas_no_mesmo_dia===false?'Não':'-'}
+                            </div>
                           </>
                         ) : (
-                          // Vale
                           <>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Valor:</span> {typeof l.valor==='number' ? l.valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '-'}</div>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Ciente:</span> {l.ciente===true?'Sim':l.ciente===false?'Não':'-'}</div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Valor:</span>{' '}
+                              {typeof l.valor==='number'
+                                ? l.valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+                                : '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Ciente:</span> {l.ciente===true?'Sim':l.ciente===false?'Não':'-'}
+                            </div>
                           </>
                         )}
                       </td>
@@ -288,16 +423,24 @@ export default function RelatoriosCampanhas() {
                           <div className="whitespace-pre-line">{l.elogio}</div>
                         ) : l.campanha==='Reciclagem' ? (
                           <>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Prioridade:</span> {l.empresas_prioridade ?? '-'}</div>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Dificuldade:</span> {l.empresas_dificuldade ?? '-'}</div>
-                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Preparado:</span> {l.preparado===true?'Sim':l.preparado===false?'Não':'-'}</div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Prioridade:</span> {l.empresas_prioridade ?? '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Dificuldade:</span> {l.empresas_dificuldade ?? '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold" style={{color:'#ff751f'}}>Preparado:</span> {l.preparado===true?'Sim':l.preparado===false?'Não':'-'}
+                            </div>
                           </>
                         ) : (
-                          '-' // Vale não tem detalhes extras
+                          '-'
                         )}
                       </td>
 
-                      <td className="border-b p-2 text-[#535151]">{new Date(l.created_at).toLocaleString('pt-BR')}</td>
+                      <td className="border-b p-2 text-[#535151]">
+                        {new Date(l.created_at).toLocaleString('pt-BR')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

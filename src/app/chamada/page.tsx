@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabaseClient'
 
 type Agente = { id: string; nome: string; status: string }
 
-// Todos os tipos de marcação do dia
 type TipoMarca =
   | 'Presente'
   | 'Folga'
@@ -15,14 +14,22 @@ type TipoMarca =
   | 'Licença Paternidade'
   | 'Ausente'
 
+// 🔹 NOVA FUNÇÃO — garante que a data seja do horário local (Brasil)
+function dataLocalYYYYMMDD() {
+  const d = new Date()
+  const ano = d.getFullYear()
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${ano}-${mes}-${dia}`
+}
+
 export default function ChamadaPage() {
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [marcasHoje, setMarcasHoje] = useState<Record<string, TipoMarca>>({})
   const [loading, setLoading] = useState(false)
-  const [q, setQ] = useState('') // busca
-  const hoje = new Date().toISOString().slice(0, 10)
+  const [q, setQ] = useState('')
+  const hoje = dataLocalYYYYMMDD() // ✅ usa data local
 
-  // Opções de marcação (inclui todos os motivos)
   const opcoes = useMemo(
     () => [
       { value: 'Presente' as const, label: 'Presente', badge: '✅', cor: '#46a049' },
@@ -40,7 +47,6 @@ export default function ChamadaPage() {
   useEffect(() => {
     carregarAgentes()
     carregarPresencas(hoje)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function carregarAgentes() {
@@ -72,7 +78,6 @@ export default function ChamadaPage() {
         })
 
       if (error) {
-        // fallback se não existir índice único
         await supabase.from('presencas').delete().eq('agente_id', agenteId).eq('data_registro', hoje)
         const { error: e2 } = await supabase
           .from('presencas')
@@ -100,11 +105,11 @@ export default function ChamadaPage() {
       default: return '#757575'
     }
   }
+
   function corTipo(t: TipoMarca) {
     return opcoes.find(o => o.value === t)?.cor ?? '#999'
   }
 
-  // ---- Busca (remove acentos e ignora maiúsculas/minúsculas)
   function norm(s: string) {
     return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
   }
@@ -115,13 +120,8 @@ export default function ChamadaPage() {
     return agentes.filter(a => norm(a.nome).includes(nq))
   }, [agentes, q])
 
-  // Listas da coluna direita
   const listaPresente = agentes.filter(a => marcasHoje[a.id] === 'Presente')
-
-  // Ainda não logaram = status Ativo e sem marcação hoje
   const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
-
-  // Ausências = qualquer marcação diferente de Presente
   const listaAusencias = agentes
     .map(a => ({ ...a, tipo: marcasHoje[a.id] as TipoMarca | undefined }))
     .filter(a => a.tipo && a.tipo !== 'Presente') as (Agente & { tipo: TipoMarca })[]
@@ -129,95 +129,29 @@ export default function ChamadaPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* HEADER */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">
             Data — {hoje}
           </h1>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Início */}
-            <a
-              href="/"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Início
-            </a>
-
-            {/* Chamada (página atual) */}
-            <span
-              className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
-              aria-current="page"
-              title="Você está em Chamada"
-            >
-              Chamada
-            </span>
-
-            {/* Relatório de Chamada — só aqui */}
-            <a
-              href="/relatorios"
-              className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-            >
-              Relatórios de Chamada
-            </a>
-
-            {/* Campanhas */}
-            <a
-              href="/campanhas"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Campanhas
-            </a>
-
-            {/* Erros */}
-            <a
-              href="/erros"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Erros
-            </a>
-
-            {/* Advertências */}
-            <a
-              href="/advertencias"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Advertências
-            </a>
-
-            {/* Atestados */}
-            <a
-              href="/atestados"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Atestados
-            </a>
-
-            {/* Ligações (sem relatório aqui) */}
-            <a
-              href="/ligacoes"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Ligações Ativas
-            </a>
-
-            {/* Sair */}
-            <a
-              href="/login?logout=1"
-              className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-            >
-              Sair
-            </a>
+            <a href="/" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Início</a>
+            <span className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default">Chamada</span>
+            <a href="/relatorios" className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">Relatórios</a>
+            <a href="/campanhas" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Campanhas</a>
+            <a href="/erros" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Erros</a>
+            <a href="/advertencias" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Advertências</a>
+            <a href="/atestados" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Atestados</a>
+            <a href="/ligacoes" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Ligações Ativas</a>
+            <a href="/login?logout=1" className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600">Sair</a>
           </div>
         </div>
 
-        {/* GRID 2x2: quatro quadros */}
+        {/* GRID */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* QUADRO 1 — Chamada */}
+          {/* CHAMADA */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
-
-            {/* Barra de busca */}
             <div className="mb-3 flex items-center gap-2">
               <input
                 type="text"
@@ -227,11 +161,7 @@ export default function ChamadaPage() {
                 className="w-full rounded-lg border p-2 text-black"
               />
               {q && (
-                <button
-                  onClick={() => setQ('')}
-                  className="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  title="Limpar"
-                >
+                <button onClick={() => setQ('')} className="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-100">
                   Limpar
                 </button>
               )}
@@ -245,22 +175,15 @@ export default function ChamadaPage() {
                 const marcado = marcasHoje[a.id] as TipoMarca | undefined
                 const podeMarcar = a.status === 'Ativo' || Boolean(marcado)
                 return (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3"
-                    style={{ borderLeft: `6px solid ${corStatusAgente(a.status)}` }}
-                  >
+                  <li key={a.id} className="rounded-lg border p-3" style={{ borderLeft: `6px solid ${corStatusAgente(a.status)}` }}>
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-medium text-black">
                         {a.nome} — {a.status}
                       </span>
-
                       <select
                         disabled={!podeMarcar || loading}
                         value={marcado ?? ''}
-                        onChange={(e) =>
-                          registrar(a.id, (e.target.value || 'Presente') as TipoMarca)
-                        }
+                        onChange={(e) => registrar(a.id, (e.target.value || 'Presente') as TipoMarca)}
                         className="rounded-lg border p-2 text-black"
                       >
                         <option value="" disabled hidden>
@@ -276,13 +199,11 @@ export default function ChamadaPage() {
                   </li>
                 )
               })}
-              {agentesFiltrados.length === 0 && (
-                <p className="text-gray-500">Nenhum agente encontrado.</p>
-              )}
+              {agentesFiltrados.length === 0 && <p className="text-gray-500">Nenhum agente encontrado.</p>}
             </ul>
           </div>
 
-          {/* QUADRO 2 — Presente */}
+          {/* QUEM LOGOU */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
             {listaPresente.length === 0 ? (
@@ -290,11 +211,7 @@ export default function ChamadaPage() {
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {listaPresente.map((a) => (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: '6px solid #46a049' }}
-                  >
+                  <li key={a.id} className="rounded-lg border p-3 font-medium text-black" style={{ borderLeft: '6px solid #46a049' }}>
                     {a.nome} — ✅ Presente
                   </li>
                 ))}
@@ -302,7 +219,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 3 — Ainda não logaram */}
+          {/* NÃO LOGOU */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
             {listaNaoLogou.length === 0 ? (
@@ -310,11 +227,7 @@ export default function ChamadaPage() {
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {listaNaoLogou.map((a) => (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: '6px solid #f19a37' }}
-                  >
+                  <li key={a.id} className="rounded-lg border p-3 font-medium text-black" style={{ borderLeft: '6px solid #f19a37' }}>
                     {a.nome} — ⏳ Ainda não logou
                   </li>
                 ))}
@@ -322,7 +235,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 4 — Ausência (Motivo) */}
+          {/* AUSENTES */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
             {listaAusencias.length === 0 ? (
@@ -330,11 +243,7 @@ export default function ChamadaPage() {
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {listaAusencias.map((a) => (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}
-                  >
+                  <li key={a.id} className="rounded-lg border p-3 font-medium text-black" style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}>
                     {a.nome} — {opcoes.find(o => o.value === a.tipo)?.badge} {a.tipo}
                   </li>
                 ))}

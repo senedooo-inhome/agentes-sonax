@@ -14,7 +14,7 @@ type TipoMarca =
   | 'Licença Paternidade'
   | 'Ausente'
 
-// 🔹 NOVA FUNÇÃO — garante que a data seja do horário local (Brasil)
+// 🔹 data local (Brasil)
 function dataLocalYYYYMMDD() {
   const d = new Date()
   const ano = d.getFullYear()
@@ -28,8 +28,9 @@ export default function ChamadaPage() {
   const [marcasHoje, setMarcasHoje] = useState<Record<string, TipoMarca>>({})
   const [loading, setLoading] = useState(false)
   const [q, setQ] = useState('')
-  const hoje = dataLocalYYYYMMDD() // ✅ usa data local
+  const hoje = dataLocalYYYYMMDD()
 
+  // opções de marcação
   const opcoes = useMemo(
     () => [
       { value: 'Presente' as const, label: 'Presente', badge: '✅', cor: '#46a049' },
@@ -47,6 +48,7 @@ export default function ChamadaPage() {
   useEffect(() => {
     carregarAgentes()
     carregarPresencas(hoje)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function carregarAgentes() {
@@ -68,6 +70,29 @@ export default function ChamadaPage() {
     setMarcasHoje(map)
   }
 
+  // 👉 remove totalmente a marcação do dia (volta pro "não logou")
+  async function removerPresenca(agenteId: string) {
+    try {
+      setLoading(true)
+      await supabase
+        .from('presencas')
+        .delete()
+        .eq('agente_id', agenteId)
+        .eq('data_registro', hoje)
+
+      // tira do estado
+      setMarcasHoje(prev => {
+        const novo = { ...prev }
+        delete novo[agenteId]
+        return novo
+      })
+    } catch (e: any) {
+      alert('Erro ao remover marcação: ' + e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function registrar(agenteId: string, tipo: TipoMarca) {
     try {
       setLoading(true)
@@ -78,6 +103,7 @@ export default function ChamadaPage() {
         })
 
       if (error) {
+        // fallback
         await supabase.from('presencas').delete().eq('agente_id', agenteId).eq('data_registro', hoje)
         const { error: e2 } = await supabase
           .from('presencas')
@@ -129,10 +155,9 @@ export default function ChamadaPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
+        {/* HEADER */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#2687e2]">
-            Data — {hoje}
-          </h1>
+          <h1 className="text-2xl font-bold text-[#2687e2]">Data — {hoje}</h1>
 
           <div className="flex items-center gap-2 flex-wrap">
             <a href="/" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Início</a>
@@ -149,7 +174,7 @@ export default function ChamadaPage() {
 
         {/* GRID */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* CHAMADA */}
+          {/* QUADRO 1 — Chamada */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
             <div className="mb-3 flex items-center gap-2">
@@ -161,7 +186,10 @@ export default function ChamadaPage() {
                 className="w-full rounded-lg border p-2 text-black"
               />
               {q && (
-                <button onClick={() => setQ('')} className="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                <button
+                  onClick={() => setQ('')}
+                  className="rounded-lg border px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
                   Limpar
                 </button>
               )}
@@ -175,20 +203,38 @@ export default function ChamadaPage() {
                 const marcado = marcasHoje[a.id] as TipoMarca | undefined
                 const podeMarcar = a.status === 'Ativo' || Boolean(marcado)
                 return (
-                  <li key={a.id} className="rounded-lg border p-3" style={{ borderLeft: `6px solid ${corStatusAgente(a.status)}` }}>
+                  <li
+                    key={a.id}
+                    className="rounded-lg border p-3"
+                    style={{ borderLeft: `6px solid ${corStatusAgente(a.status)}` }}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-medium text-black">
                         {a.nome} — {a.status}
                       </span>
+
                       <select
                         disabled={!podeMarcar || loading}
                         value={marcado ?? ''}
-                        onChange={(e) => registrar(a.id, (e.target.value || 'Presente') as TipoMarca)}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          if (val === '__remover') {
+                            removerPresenca(a.id)
+                          } else {
+                            registrar(a.id, (val || 'Presente') as TipoMarca)
+                          }
+                        }}
                         className="rounded-lg border p-2 text-black"
                       >
                         <option value="" disabled hidden>
                           {marcado ? 'Alterar…' : 'Marcar…'}
                         </option>
+
+                        {/* opção nova para desfazer */}
+                        {marcado && (
+                          <option value="__remover">❌ Remover marcação</option>
+                        )}
+
                         {opcoes.map(op => (
                           <option key={op.value} value={op.value}>
                             {op.badge} {op.label}
@@ -199,11 +245,13 @@ export default function ChamadaPage() {
                   </li>
                 )
               })}
-              {agentesFiltrados.length === 0 && <p className="text-gray-500">Nenhum agente encontrado.</p>}
+              {agentesFiltrados.length === 0 && (
+                <p className="text-gray-500">Nenhum agente encontrado.</p>
+              )}
             </ul>
           </div>
 
-          {/* QUEM LOGOU */}
+          {/* QUADRO 2 — Quem logou */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
             {listaPresente.length === 0 ? (
@@ -211,7 +259,11 @@ export default function ChamadaPage() {
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {listaPresente.map((a) => (
-                  <li key={a.id} className="rounded-lg border p-3 font-medium text-black" style={{ borderLeft: '6px solid #46a049' }}>
+                  <li
+                    key={a.id}
+                    className="rounded-lg border p-3 font-medium text-black"
+                    style={{ borderLeft: '6px solid #46a049' }}
+                  >
                     {a.nome} — ✅ Presente
                   </li>
                 ))}
@@ -219,7 +271,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* NÃO LOGOU */}
+          {/* QUADRO 3 — Ainda não logaram */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
             {listaNaoLogou.length === 0 ? (
@@ -227,7 +279,11 @@ export default function ChamadaPage() {
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {listaNaoLogou.map((a) => (
-                  <li key={a.id} className="rounded-lg border p-3 font-medium text-black" style={{ borderLeft: '6px solid #f19a37' }}>
+                  <li
+                    key={a.id}
+                    className="rounded-lg border p-3 font-medium text-black"
+                    style={{ borderLeft: '6px solid #f19a37' }}
+                  >
                     {a.nome} — ⏳ Ainda não logou
                   </li>
                 ))}
@@ -235,7 +291,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* AUSENTES */}
+          {/* QUADRO 4 — Ausência */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
             {listaAusencias.length === 0 ? (
@@ -243,7 +299,11 @@ export default function ChamadaPage() {
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {listaAusencias.map((a) => (
-                  <li key={a.id} className="rounded-lg border p-3 font-medium text-black" style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}>
+                  <li
+                    key={a.id}
+                    className="rounded-lg border p-3 font-medium text-black"
+                    style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}
+                  >
                     {a.nome} — {opcoes.find(o => o.value === a.tipo)?.badge} {a.tipo}
                   </li>
                 ))}

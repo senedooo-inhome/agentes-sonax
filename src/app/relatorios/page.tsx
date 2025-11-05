@@ -8,6 +8,7 @@ type Linha = {
   status_agente: string
   data_registro: string
   tipo: string
+  created_at: string   // 👈 novo
 }
 
 // todos os tipos de marcação contemplados
@@ -21,7 +22,7 @@ const TIPOS = [
   'Licença Paternidade',
   'Ausente',
 ] as const
-type Tipo = typeof TIPOS[number]
+type Tipo = (typeof TIPOS)[number]
 
 export default function RelatoriosPage() {
   const hojeISO = new Date().toISOString().slice(0, 10)
@@ -42,13 +43,16 @@ export default function RelatoriosPage() {
 
   function atalhoHoje() {
     const d = new Date().toISOString().slice(0, 10)
-    setDataIni(d); setDataFim(d)
+    setDataIni(d)
+    setDataFim(d)
   }
   function atalhoSemana() {
     const d = new Date()
     const diaSemana = d.getDay() || 7
-    const inicio = new Date(d); inicio.setDate(d.getDate() - (diaSemana - 1))
-    const fim = new Date(inicio); fim.setDate(inicio.getDate() + 6)
+    const inicio = new Date(d)
+    inicio.setDate(d.getDate() - (diaSemana - 1))
+    const fim = new Date(inicio)
+    fim.setDate(inicio.getDate() + 6)
     setDataIni(inicio.toISOString().slice(0, 10))
     setDataFim(fim.toISOString().slice(0, 10))
   }
@@ -65,15 +69,18 @@ export default function RelatoriosPage() {
     try {
       const { data, error } = await supabase
         .from('presencas')
-        .select(`
+        .select(
+          `
           agente_id,
           data_registro,
           tipo,
+          created_at,
           agentes (
             nome,
             status
           )
-        `)
+        `
+        )
         .gte('data_registro', dataIni)
         .lte('data_registro', dataFim)
 
@@ -90,14 +97,18 @@ export default function RelatoriosPage() {
         status_agente: p.agentes?.status ?? '-',
         data_registro: p.data_registro,
         tipo: p.tipo,
+        created_at: p.created_at, // 👈 vem do banco
       }))
 
-      // ordena (data desc, depois nome)
-      linhasFmt.sort((a, b) =>
-        a.data_registro === b.data_registro
-          ? a.nome.localeCompare(b.nome)
-          : b.data_registro.localeCompare(a.data_registro)
-      )
+      // ordena pelo momento que foi criado (mais recente em cima)
+      linhasFmt.sort((a, b) => {
+        // se tiver created_at usa ele
+        if (a.created_at && b.created_at) {
+          return b.created_at.localeCompare(a.created_at)
+        }
+        // fallback pra data_registro
+        return b.data_registro.localeCompare(a.data_registro)
+      })
 
       setLinhas(linhasFmt)
     } catch (e: any) {
@@ -152,11 +163,18 @@ export default function RelatoriosPage() {
       alert('Não há dados para exportar.')
       return
     }
-    const headers = ['Data', 'Nome', 'Status agente', 'Tipo']
+    const headers = ['Data', 'Nome', 'Status agente', 'Tipo', 'Criado em']
     const linhasCSV = linhasVisiveis.map(l =>
-      [l.data_registro, l.nome, l.status_agente, l.tipo].map(csvEscape).join(';')
+      [
+        l.data_registro,
+        l.nome,
+        l.status_agente,
+        l.tipo,
+        l.created_at ? new Date(l.created_at).toLocaleString('pt-BR') : '',
+      ]
+        .map(csvEscape)
+        .join(';')
     )
-    // BOM para acentuação correta no Excel (UTF-8)
     const conteudo = '\uFEFF' + [headers.join(';'), ...linhasCSV].join('\r\n')
     const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -189,9 +207,7 @@ export default function RelatoriosPage() {
             >
               Chamada
             </a>
-            <span
-              className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default"
-            >
+            <span className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default">
               Relatórios de Chamada
             </span>
             <a
@@ -224,7 +240,7 @@ export default function RelatoriosPage() {
                 type="date"
                 className="w-full rounded-lg border p-2 text-black"
                 value={dataIni}
-                onChange={(e) => setDataIni(e.target.value)}
+                onChange={e => setDataIni(e.target.value)}
               />
             </div>
             <div>
@@ -233,20 +249,26 @@ export default function RelatoriosPage() {
                 type="date"
                 className="w-full rounded-lg border p-2 text-black"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={e => setDataFim(e.target.value)}
               />
             </div>
             <div className="flex items-end gap-2">
-              <button onClick={atalhoHoje}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+              <button
+                onClick={atalhoHoje}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
                 Hoje
               </button>
-              <button onClick={atalhoSemana}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+              <button
+                onClick={atalhoSemana}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
                 Semana
               </button>
-              <button onClick={atalhoMes}
-                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">
+              <button
+                onClick={atalhoMes}
+                className="rounded-lg border border-[#2687e2] px-3 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
                 Mês
               </button>
             </div>
@@ -257,7 +279,7 @@ export default function RelatoriosPage() {
             <input
               type="text"
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={e => setQ(e.target.value)}
               placeholder="Buscar por nome do agente…"
               className="w-full md:w-96 rounded-lg border p-2 text-black"
             />
@@ -278,13 +300,9 @@ export default function RelatoriosPage() {
           {/* Tipos */}
           <div className="mt-2 flex flex-wrap items-center gap-4">
             <span className="text-sm font-medium text-gray-700">Tipos:</span>
-            {TIPOS.map((t) => (
+            {TIPOS.map(t => (
               <label key={t} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={tipoMarcado(t)}
-                  onChange={() => toggleTipo(t)}
-                />
+                <input type="checkbox" checked={tipoMarcado(t)} onChange={() => toggleTipo(t)} />
                 <span className="font-medium" style={{ color: corTipo(t) }}>
                   {t}
                 </span>
@@ -325,6 +343,7 @@ export default function RelatoriosPage() {
                     <th className="border-b p-2">Nome</th>
                     <th className="border-b p-2">Status agente</th>
                     <th className="border-b p-2">Tipo</th>
+                    <th className="border-b p-2">Criado em</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -335,6 +354,9 @@ export default function RelatoriosPage() {
                       <td className="border-b p-2 text-gray-600">{l.status_agente}</td>
                       <td className="border-b p-2 font-semibold" style={{ color: corTipo(l.tipo) }}>
                         {l.tipo}
+                      </td>
+                      <td className="border-b p-2 text-gray-600">
+                        {l.created_at ? new Date(l.created_at).toLocaleString('pt-BR') : '-'}
                       </td>
                     </tr>
                   ))}

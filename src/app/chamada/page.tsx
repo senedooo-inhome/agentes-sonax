@@ -14,7 +14,7 @@ type TipoMarca =
   | 'Licença Paternidade'
   | 'Ausente'
 
-// 🔹 data local (Brasil)
+// data local (Brasil)
 function dataLocalYYYYMMDD() {
   const d = new Date()
   const ano = d.getFullYear()
@@ -30,7 +30,6 @@ export default function ChamadaPage() {
   const [q, setQ] = useState('')
   const hoje = dataLocalYYYYMMDD()
 
-  // opções de marcação
   const opcoes = useMemo(
     () => [
       { value: 'Presente' as const, label: 'Presente', badge: '✅', cor: '#46a049' },
@@ -48,7 +47,6 @@ export default function ChamadaPage() {
   useEffect(() => {
     carregarAgentes()
     carregarPresencas(hoje)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function carregarAgentes() {
@@ -70,15 +68,22 @@ export default function ChamadaPage() {
     setMarcasHoje(map)
   }
 
-  // 👉 remove totalmente a marcação do dia (volta pro "não logou")
+  // remover marcação do dia E voltar o agente pra Ativo
   async function removerPresenca(agenteId: string) {
     try {
       setLoading(true)
+      // apaga o registro do dia
       await supabase
         .from('presencas')
         .delete()
         .eq('agente_id', agenteId)
         .eq('data_registro', hoje)
+
+      // volta status na tabela agentes
+      await supabase
+        .from('agentes')
+        .update({ status: 'Ativo' })
+        .eq('id', agenteId)
 
       // tira do estado
       setMarcasHoje(prev => {
@@ -86,6 +91,11 @@ export default function ChamadaPage() {
         delete novo[agenteId]
         return novo
       })
+
+      // atualiza lista de agentes em memória
+      setAgentes(prev =>
+        prev.map(a => (a.id === agenteId ? { ...a, status: 'Ativo' } : a))
+      )
     } catch (e: any) {
       alert('Erro ao remover marcação: ' + e.message)
     } finally {
@@ -93,9 +103,11 @@ export default function ChamadaPage() {
     }
   }
 
+  // marcar presença/ausência e também gravar no agente
   async function registrar(agenteId: string, tipo: TipoMarca) {
     try {
       setLoading(true)
+      // grava na tabela de presenças do dia
       const { error } = await supabase
         .from('presencas')
         .upsert([{ agente_id: agenteId, data_registro: hoje, tipo }], {
@@ -111,7 +123,19 @@ export default function ChamadaPage() {
         if (e2) throw e2
       }
 
+      // se não for Presente -> manter no painel de ausência até mudar
+      // então atualiza status na tabela agentes também
+      const novoStatus = tipo === 'Presente' ? 'Ativo' : tipo
+      await supabase
+        .from('agentes')
+        .update({ status: novoStatus })
+        .eq('id', agenteId)
+
+      // atualiza estado local
       setMarcasHoje(prev => ({ ...prev, [agenteId]: tipo }))
+      setAgentes(prev =>
+        prev.map(a => (a.id === agenteId ? { ...a, status: novoStatus } : a))
+      )
     } catch (e: any) {
       alert('Erro ao registrar: ' + e.message)
     } finally {
@@ -128,6 +152,7 @@ export default function ChamadaPage() {
       case 'Afastado': return '#9c27b0'
       case 'Licença Maternidade': return '#ff4081'
       case 'Licença Paternidade': return '#5c6bc0'
+      case 'Ausente': return '#757575'
       default: return '#757575'
     }
   }
@@ -146,10 +171,25 @@ export default function ChamadaPage() {
     return agentes.filter(a => norm(a.nome).includes(nq))
   }, [agentes, q])
 
+  // quem marcou Presente hoje
   const listaPresente = agentes.filter(a => marcasHoje[a.id] === 'Presente')
+
+  // quem não tem marcação hoje e está Ativo
   const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
+
+  // AUSÊNCIAS:
+  // 1) quem marcou hoje ausência
+  // 2) OU quem está com status diferente de Ativo na tabela agentes
   const listaAusencias = agentes
-    .map(a => ({ ...a, tipo: marcasHoje[a.id] as TipoMarca | undefined }))
+    .map(a => {
+      const tipoHoje = marcasHoje[a.id] as TipoMarca | undefined
+      // prioridade: o que marcou hoje; se não marcou hoje, usa o status do agente
+      const motivo: TipoMarca | undefined =
+        tipoHoje && tipoHoje !== 'Presente'
+          ? tipoHoje
+          : (a.status !== 'Ativo' ? (a.status as TipoMarca) : undefined)
+      return { ...a, tipo: motivo }
+    })
     .filter(a => a.tipo && a.tipo !== 'Presente') as (Agente & { tipo: TipoMarca })[]
 
   return (
@@ -174,7 +214,7 @@ export default function ChamadaPage() {
 
         {/* GRID */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* QUADRO 1 — Chamada */}
+          {/* CHAMADA */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
             <div className="mb-3 flex items-center gap-2">
@@ -230,7 +270,6 @@ export default function ChamadaPage() {
                           {marcado ? 'Alterar…' : 'Marcar…'}
                         </option>
 
-                        {/* opção nova para desfazer */}
                         {marcado && (
                           <option value="__remover">❌ Remover marcação</option>
                         )}
@@ -251,7 +290,7 @@ export default function ChamadaPage() {
             </ul>
           </div>
 
-          {/* QUADRO 2 — Quem logou */}
+          {/* QUEM LOGOU */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
             {listaPresente.length === 0 ? (
@@ -271,7 +310,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 3 — Ainda não logaram */}
+          {/* AINDA NÃO LOGARAM */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
             {listaNaoLogou.length === 0 ? (
@@ -291,7 +330,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* QUADRO 4 — Ausência */}
+          {/* AUSÊNCIA */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
             {listaAusencias.length === 0 ? (

@@ -1,3 +1,7 @@
+'use client'
+
+import React, { useState } from 'react'
+
 function AssistantChat() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState([
@@ -49,7 +53,7 @@ function AssistantChat() {
 
   return (
     <>
-      {/* 1) bolinha MAIS ALTA */}
+      {/* botão flutuante */}
       <button
         onClick={() => setOpen(o => !o)}
         className="fixed bottom-24 right-6 z-50 bg-[#2687e2] hover:bg-[#1f6bb6] text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
@@ -58,7 +62,6 @@ function AssistantChat() {
         💬
       </button>
 
-      {/* 2) janela mais alta também */}
       {open && (
         <div
           className="fixed bottom-40 right-6 z-50 w-80 bg-white rounded-xl shadow-2xl border border-blue-100 flex flex-col"
@@ -82,7 +85,6 @@ function AssistantChat() {
                 key={i}
                 className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                {/* 3) mensagem do usuário com FUNDO BRANCO e TEXTO PRETO */}
                 <div
                   className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
                     m.from === 'user'
@@ -118,3 +120,5 @@ function AssistantChat() {
     </>
   )
 }
+
+export default AssistantChat

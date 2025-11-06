@@ -268,7 +268,6 @@ export default function CadastroAgentesPage() {
     return map[s] ?? '#ccc'
   }
 
-  // estados de auth
   if (!authChecked && !allowed) {
     return (
       <main className="min-h-screen bg-[#f5f6f7] p-8 flex items-center justify-center">
@@ -279,6 +278,25 @@ export default function CadastroAgentesPage() {
   }
 
   if (!allowed) return null
+
+  // 🔧 AQUI está a correção: usamos objetos, não arrays misturadas
+  const menuLinks: Array<{
+    href: string
+    label: string
+    bordered?: boolean
+    color?: 'gray'
+  }> = [
+    { href: '/', label: 'Início' },
+    { href: '/chamada', label: 'Chamada' },
+    { href: '/campanhas', label: 'Campanhas' },
+    { href: '/campanhas/relatorios', label: 'Rel. campanhas', bordered: true },
+    { href: '/erros', label: 'Erros' },
+    { href: '/advertencias', label: 'Advertências' },
+    { href: '/atestados', label: 'Atestados' },
+    { href: '/ligacoes', label: 'Ligações Ativas' },
+    { href: '/ligacoes/relatorios', label: 'Rel. ligações', bordered: true },
+    { href: '/login?logout=1', label: 'Sair', color: 'gray' },
+  ]
 
   return (
     <main className="relative min-h-screen bg-[#f5f6f7] p-8 overflow-hidden">
@@ -304,30 +322,19 @@ export default function CadastroAgentesPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Cadastro de Agentes</h1>
           <div className="flex items-center gap-2 flex-wrap">
-            {[
-              ['/', 'Início'],
-              ['/chamada', 'Chamada'],
-              ['/campanhas', 'Campanhas'],
-              ['/campanhas/relatorios', 'Rel. campanhas', true],
-              ['/erros', 'Erros'],
-              ['/advertencias', 'Advertências'],
-              ['/atestados', 'Atestados'],
-              ['/ligacoes', 'Ligações Ativas'],
-              ['/ligacoes/relatorios', 'Rel. ligações', true],
-              ['/login?logout=1', 'Sair', false, 'gray'],
-            ].map(([href, label, bordered, color]) => (
+            {menuLinks.map(link => (
               <a
-                key={href}
-                href={href}
+                key={link.href}
+                href={link.href}
                 className={`rounded-lg px-2 py-1 text-sm font-semibold ${
-                  bordered
+                  link.bordered
                     ? 'border border-[#2687e2] text-[#2687e2] hover:bg-[#2687e2] hover:text-white'
-                    : color === 'gray'
+                    : link.color === 'gray'
                     ? 'bg-gray-500 text-white hover:bg-gray-600'
                     : 'bg-[#2687e2] text-white hover:bg-blue-600'
                 }`}
               >
-                {label}
+                {link.label}
               </a>
             ))}
           </div>

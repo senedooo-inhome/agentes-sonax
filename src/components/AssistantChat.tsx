@@ -43,7 +43,7 @@ export default function AssistantChat() {
           data.message ?? `Encontrei ${data.count} registro(s) de ${data.intent || 'dados'}.`
         setMessages(prev => [...prev, { from: 'bot', text: reply }])
       }
-    } catch (err) {
+    } catch {
       setMessages(prev => [
         ...prev,
         { from: 'bot', text: 'Erro ao falar com o servidor.' },
@@ -54,10 +54,9 @@ export default function AssistantChat() {
     }
   }
 
-  // botão posicionado
   return (
     <>
-      {/* bolinha do chat */}
+      {/* botão flutuante */}
       <button
         onClick={() => setOpen(o => !o)}
         className="fixed bottom-24 right-6 z-50 bg-[#2687e2] hover:bg-[#1f6bb6] text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
@@ -72,7 +71,6 @@ export default function AssistantChat() {
           className="fixed bottom-40 right-6 z-50 w-80 bg-white rounded-xl shadow-2xl border border-blue-100 flex flex-col"
           style={{ maxHeight: '65vh' }}
         >
-          {/* header */}
           <div className="flex items-center justify-between bg-[#2687e2] text-white rounded-t-xl px-3 py-2">
             <div>
               <div className="text-sm font-semibold">Assistente Sonax</div>
@@ -83,7 +81,6 @@ export default function AssistantChat() {
             </button>
           </div>
 
-          {/* mensagens */}
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-slate-50">
             {messages.map((m, i) => (
               <div
@@ -104,7 +101,6 @@ export default function AssistantChat() {
             {loading && <p className="text-xs text-slate-400">Digitando…</p>}
           </div>
 
-          {/* input */}
           <form onSubmit={sendMessage} className="flex gap-2 p-2 border-t bg-white rounded-b-xl">
             <input
               value={input}

@@ -2,11 +2,15 @@
 
 import React, { useState } from 'react'
 
-function AssistantChat() {
+type ChatMessage =
+  | { from: 'bot'; text: string }
+  | { from: 'user'; text: string }
+
+export default function AssistantChat() {
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      from: 'bot' as const,
+      from: 'bot',
       text: 'Oi! Posso te dizer sobre atestados, presenças, advertências e campanhas 👋',
     },
   ])
@@ -17,7 +21,7 @@ function AssistantChat() {
     e?.preventDefault()
     if (!input.trim()) return
 
-    const userMsg = { from: 'user' as const, text: input }
+    const userMsg: ChatMessage = { from: 'user', text: input }
     setMessages(prev => [...prev, userMsg])
     setLoading(true)
 
@@ -32,18 +36,17 @@ function AssistantChat() {
       if (!data.ok) {
         setMessages(prev => [
           ...prev,
-          { from: 'bot' as const, text: data.error || 'Não consegui buscar agora 🥺' },
+          { from: 'bot', text: data.error || 'Não consegui buscar agora 🥺' },
         ])
       } else {
         const reply =
-          data.message ??
-          `Encontrei ${data.count} registro(s) de ${data.intent || 'dados'}.`
-        setMessages(prev => [...prev, { from: 'bot' as const, text: reply }])
+          data.message ?? `Encontrei ${data.count} registro(s) de ${data.intent || 'dados'}.`
+        setMessages(prev => [...prev, { from: 'bot', text: reply }])
       }
     } catch (err) {
       setMessages(prev => [
         ...prev,
-        { from: 'bot' as const, text: 'Erro ao falar com o servidor.' },
+        { from: 'bot', text: 'Erro ao falar com o servidor.' },
       ])
     } finally {
       setLoading(false)
@@ -51,9 +54,10 @@ function AssistantChat() {
     }
   }
 
+  // botão posicionado
   return (
     <>
-      {/* botão flutuante */}
+      {/* bolinha do chat */}
       <button
         onClick={() => setOpen(o => !o)}
         className="fixed bottom-24 right-6 z-50 bg-[#2687e2] hover:bg-[#1f6bb6] text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl"
@@ -62,6 +66,7 @@ function AssistantChat() {
         💬
       </button>
 
+      {/* janela */}
       {open && (
         <div
           className="fixed bottom-40 right-6 z-50 w-80 bg-white rounded-xl shadow-2xl border border-blue-100 flex flex-col"
@@ -120,5 +125,3 @@ function AssistantChat() {
     </>
   )
 }
-
-export default AssistantChat

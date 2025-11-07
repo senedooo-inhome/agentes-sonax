@@ -68,7 +68,7 @@ export default function ChamadaPage() {
     setMarcasHoje(map)
   }
 
-  // remove do dia e volta o agente pra Ativo
+  // remover marcação do dia e voltar agente para Ativo
   async function removerPresenca(agenteId: string) {
     try {
       setLoading(true)
@@ -78,10 +78,7 @@ export default function ChamadaPage() {
         .eq('agente_id', agenteId)
         .eq('data_registro', hoje)
 
-      await supabase
-        .from('agentes')
-        .update({ status: 'Ativo' })
-        .eq('id', agenteId)
+      await supabase.from('agentes').update({ status: 'Ativo' }).eq('id', agenteId)
 
       setMarcasHoje(prev => {
         const novo = { ...prev }
@@ -99,7 +96,7 @@ export default function ChamadaPage() {
     }
   }
 
-  // marca e grava o mesmo motivo no agente
+  // marcar e gravar o mesmo motivo no agente
   async function registrar(agenteId: string, tipo: TipoMarca) {
     try {
       setLoading(true)
@@ -118,10 +115,7 @@ export default function ChamadaPage() {
       }
 
       const novoStatus = tipo === 'Presente' ? 'Ativo' : tipo
-      await supabase
-        .from('agentes')
-        .update({ status: novoStatus })
-        .eq('id', agenteId)
+      await supabase.from('agentes').update({ status: novoStatus }).eq('id', agenteId)
 
       setMarcasHoje(prev => ({ ...prev, [agenteId]: tipo }))
       setAgentes(prev =>
@@ -228,6 +222,13 @@ export default function ChamadaPage() {
                 const temMarcacaoHoje = Boolean(marcado)
                 const estaAusentePeloStatus = !temMarcacaoHoje && a.status !== 'Ativo'
 
+                // ⬇️ valor que o select deve mostrar
+                const valorSelect = temMarcacaoHoje
+                  ? marcado!
+                  : estaAusentePeloStatus
+                    ? (a.status as TipoMarca)
+                    : ''
+
                 return (
                   <li
                     key={a.id}
@@ -241,7 +242,7 @@ export default function ChamadaPage() {
 
                       <select
                         disabled={loading}
-                        value={temMarcacaoHoje ? marcado! : ''}  // se não tem marcação hoje, mostra "Marcar…"
+                        value={valorSelect}
                         onChange={(e) => {
                           const val = e.target.value
                           if (val === '__remover') {
@@ -252,10 +253,16 @@ export default function ChamadaPage() {
                         }}
                         className="rounded-lg border p-2 text-black"
                       >
-                        <option value="" disabled={!temMarcacaoHoje} hidden={temMarcacaoHoje}>
-                          {temMarcacaoHoje ? 'Alterar…' : 'Marcar…'}
+                        {/* quando não tem nada nem status, aparece Marcar… */}
+                        <option
+                          value=""
+                          disabled={valorSelect !== ''}
+                          hidden={valorSelect !== ''}
+                        >
+                          {valorSelect ? 'Alterar…' : 'Marcar…'}
                         </option>
 
+                        {/* se ele está ausente só pelo status (ex: Atestado), mostra o remover */}
                         {(temMarcacaoHoje || estaAusentePeloStatus) && (
                           <option value="__remover">❌ Remover marcação</option>
                         )}

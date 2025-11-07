@@ -160,7 +160,18 @@ type Agente = {
   created_at?: string
 }
 
-const statusOptions = [{ label: 'Ativo', color: '#46a049' }]
+const statusOptions = [
+  { label: 'Presente', color: '#46a049' },           // ✅
+  { label: 'Folga', color: '#3399ff' },              // 🟦
+  { label: 'Férias', color: '#f4c542' },             // 🏖️
+  { label: 'Atestado', color: '#ff9999' },           // 🩺
+  { label: 'Afastado', color: '#ff4d4d' },           // 🚫
+  { label: 'Licença Maternidade', color: '#ffb6c1' },// 👶
+  { label: 'Licença Paternidade', color: '#add8e6' },// 🍼
+  { label: 'Ausente', color: '#a9a9a9' },            // ⛔
+  { label: 'Ativo', color: '#46a049' }               // original
+];
+
 
 export default function CadastroAgentesPage() {
   const router = useRouter()

@@ -68,31 +68,27 @@ export default function ChamadaPage() {
     setMarcasHoje(map)
   }
 
-  // remover marcação do dia E voltar o agente pra Ativo
+  // remove do dia e volta o agente pra Ativo
   async function removerPresenca(agenteId: string) {
     try {
       setLoading(true)
-      // apaga o registro do dia
       await supabase
         .from('presencas')
         .delete()
         .eq('agente_id', agenteId)
         .eq('data_registro', hoje)
 
-      // volta status na tabela agentes
       await supabase
         .from('agentes')
         .update({ status: 'Ativo' })
         .eq('id', agenteId)
 
-      // tira do estado
       setMarcasHoje(prev => {
         const novo = { ...prev }
         delete novo[agenteId]
         return novo
       })
 
-      // atualiza lista de agentes em memória
       setAgentes(prev =>
         prev.map(a => (a.id === agenteId ? { ...a, status: 'Ativo' } : a))
       )
@@ -103,11 +99,10 @@ export default function ChamadaPage() {
     }
   }
 
-  // marcar presença/ausência e também gravar no agente
+  // marca e grava o mesmo motivo no agente
   async function registrar(agenteId: string, tipo: TipoMarca) {
     try {
       setLoading(true)
-      // grava na tabela de presenças do dia
       const { error } = await supabase
         .from('presencas')
         .upsert([{ agente_id: agenteId, data_registro: hoje, tipo }], {
@@ -115,7 +110,6 @@ export default function ChamadaPage() {
         })
 
       if (error) {
-        // fallback
         await supabase.from('presencas').delete().eq('agente_id', agenteId).eq('data_registro', hoje)
         const { error: e2 } = await supabase
           .from('presencas')
@@ -123,15 +117,12 @@ export default function ChamadaPage() {
         if (e2) throw e2
       }
 
-      // se não for Presente -> manter no painel de ausência até mudar
-      // então atualiza status na tabela agentes também
       const novoStatus = tipo === 'Presente' ? 'Ativo' : tipo
       await supabase
         .from('agentes')
         .update({ status: novoStatus })
         .eq('id', agenteId)
 
-      // atualiza estado local
       setMarcasHoje(prev => ({ ...prev, [agenteId]: tipo }))
       setAgentes(prev =>
         prev.map(a => (a.id === agenteId ? { ...a, status: novoStatus } : a))
@@ -171,19 +162,13 @@ export default function ChamadaPage() {
     return agentes.filter(a => norm(a.nome).includes(nq))
   }, [agentes, q])
 
-  // quem marcou Presente hoje
   const listaPresente = agentes.filter(a => marcasHoje[a.id] === 'Presente')
-
-  // quem não tem marcação hoje e está Ativo
   const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
 
-  // AUSÊNCIAS:
-  // 1) quem marcou hoje ausência
-  // 2) OU quem está com status diferente de Ativo na tabela agentes
+  // ausência = marcou hoje OU status diferente de Ativo
   const listaAusencias = agentes
     .map(a => {
       const tipoHoje = marcasHoje[a.id] as TipoMarca | undefined
-      // prioridade: o que marcou hoje; se não marcou hoje, usa o status do agente
       const motivo: TipoMarca | undefined =
         tipoHoje && tipoHoje !== 'Presente'
           ? tipoHoje
@@ -195,10 +180,9 @@ export default function ChamadaPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* HEADER */}
+        {/* header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Data — {hoje}</h1>
-
           <div className="flex items-center gap-2 flex-wrap">
             <a href="/" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Início</a>
             <span className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default">Chamada</span>
@@ -212,9 +196,9 @@ export default function ChamadaPage() {
           </div>
         </div>
 
-        {/* GRID */}
+        {/* grid */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* CHAMADA */}
+          {/* chamada */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
             <div className="mb-3 flex items-center gap-2">
@@ -241,7 +225,9 @@ export default function ChamadaPage() {
             <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
               {agentesFiltrados.map((a) => {
                 const marcado = marcasHoje[a.id] as TipoMarca | undefined
-                const podeMarcar = a.status === 'Ativo' || Boolean(marcado)
+                const temMarcacaoHoje = Boolean(marcado)
+                const estaAusentePeloStatus = !temMarcacaoHoje && a.status !== 'Ativo'
+
                 return (
                   <li
                     key={a.id}
@@ -254,8 +240,8 @@ export default function ChamadaPage() {
                       </span>
 
                       <select
-                        disabled={!podeMarcar || loading}
-                        value={marcado ?? ''}
+                        disabled={loading}
+                        value={temMarcacaoHoje ? marcado! : ''}  // se não tem marcação hoje, mostra "Marcar…"
                         onChange={(e) => {
                           const val = e.target.value
                           if (val === '__remover') {
@@ -266,11 +252,11 @@ export default function ChamadaPage() {
                         }}
                         className="rounded-lg border p-2 text-black"
                       >
-                        <option value="" disabled hidden>
-                          {marcado ? 'Alterar…' : 'Marcar…'}
+                        <option value="" disabled={!temMarcacaoHoje} hidden={temMarcacaoHoje}>
+                          {temMarcacaoHoje ? 'Alterar…' : 'Marcar…'}
                         </option>
 
-                        {marcado && (
+                        {(temMarcacaoHoje || estaAusentePeloStatus) && (
                           <option value="__remover">❌ Remover marcação</option>
                         )}
 
@@ -290,7 +276,7 @@ export default function ChamadaPage() {
             </ul>
           </div>
 
-          {/* QUEM LOGOU */}
+          {/* quem logou */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
             {listaPresente.length === 0 ? (
@@ -310,7 +296,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* AINDA NÃO LOGARAM */}
+          {/* ainda não logaram */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
             {listaNaoLogou.length === 0 ? (
@@ -330,7 +316,7 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* AUSÊNCIA */}
+          {/* ausência */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
             {listaAusencias.length === 0 ? (

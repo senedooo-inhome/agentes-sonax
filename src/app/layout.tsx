@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SpeedInsights } from "@vercel/speed-insights/next"; // ✅ importa o pacote da Vercel
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import MenuLayout from "@/components/MenuLayout"; // novo componente
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,31 +14,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: 'Sonax In Home',
-  description: 'Painel interno Sonax',
+export const metadata: Metadata = {
+  title: "Sonax In Home",
+  description: "Painel interno Sonax",
   icons: {
-    icon: '/favicon.png',
+    icon: "/favicon.png",
   },
-}
-
+};
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="pt-BR">
       <head>
         <link rel="icon" href="/og-image.png" type="image/png" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-
-        {/* ✅ componente da Vercel que coleta as métricas de velocidade */}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <MenuLayout>{children}</MenuLayout>
         <SpeedInsights />
       </body>
     </html>

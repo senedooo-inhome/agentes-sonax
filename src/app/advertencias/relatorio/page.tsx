@@ -210,27 +210,7 @@ export default function RelatorioAdvertenciasPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* Header */}
-        <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#2687e2]">
-            Relatórios — Advertências
-          </h1>
-
-          <div className="flex gap-2">
-            <a
-              href="/"
-              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Início
-            </a>
-            <a
-              href="/advertencias"
-              className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Formulário
-            </a>
-          </div>
-        </header>
+      
 
         {/* Filtros */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">

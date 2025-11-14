@@ -173,39 +173,7 @@ export default function AdvertenciasPage() {
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         {/* Header */}
-        <header className="flex items-center justify-between flex-wrap gap-2">
-          <h1 className="text-2xl font-bold text-[#2687e2]">Advertências</h1>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <a
-              href="/"
-              className="rounded-lg bg-[#2687e2] px-2 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Início
-            </a>
-
-            <a
-              href="/advertencias/relatorios"
-              className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-            >
-              Rel. advertências
-            </a>
-             {/* Atestados + Rel. atestados */}
-            <a
-              href="/atestados"
-              className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Atestados
-            </a>
-
-            <a
-              href="/login?logout=1"
-              className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-            >
-              Sair
-            </a>
-          </div>
-        </header>
+      
 
         {/* Texto explicativo */}
         <div className="rounded-xl bg-white p-4 shadow text-[#535151] text-sm leading-relaxed">

@@ -81,67 +81,7 @@ async function salvar(e: React.FormEvent) {
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         {/* NAV PRINCIPAL */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <a
-            href="/"
-            className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-          >
-            Início
-          </a>
-          <a
-            href="/chamada"
-            className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-          >
-            Chamada
-          </a>
-          <a
-            href="/campanhas"
-            className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-          >
-            Campanhas
-          </a>
-          <a
-            href="/erros"
-            className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-          >
-            Erros
-          </a>
-          <a
-            href="/advertencias"
-            className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-          >
-            Advertências
-          </a>
-
-          {/* você está aqui */}
-          <span
-            className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default"
-            aria-current="page"
-          >
-            Ligações
-          </span>
-
-          {/* botão de relatório de ligações */}
-          <a
-            href="/ligacoes/relatorios"
-            className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-          >
-            Rel. ligações
-          </a>
-
-          <a
-            href="/login?logout=1"
-            className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600"
-          >
-            Sair
-          </a>
-        </div>
-
-        <header className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#2687e2]">
-            Ligações Ativas
-          </h1>
-        </header>
+        
 
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
           <p className="text-sm text-[#535151]">

@@ -191,45 +191,7 @@ export default function RelatoriosPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        {/* HEADER com menu completo */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios</h1>
-          <div className="flex gap-2">
-            <a
-              href="/"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Inicio
-            </a>
-            <a
-              href="/chamada"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Chamada
-            </a>
-            <span className="rounded-lg bg-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 cursor-default">
-              Relatórios de Chamada
-            </span>
-            <a
-              href="/campanhas"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Campanhas
-            </a>
-            <a
-              href="/campanhas/relatorios"
-              className="rounded-lg bg-[#2687e2] px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-            >
-              Rel. campanhas
-            </a>
-            <a
-              href="/login?logout=1"
-              className="rounded-lg bg-gray-500 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-600"
-            >
-              Sair
-            </a>
-          </div>
-        </div>
+        
 
         {/* FILTROS */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">

@@ -414,7 +414,7 @@ export default function CampanhasPage() {
                 </ul>
                 <p className="mt-2">❌ <b>Requisitos:</b></p>
                 <ul className="list-disc pl-5">
-                  <li>🔴 Ter pelo menos <b>6 meses</b> de vínculo empregatício com a empresa.</li>
+                  
                   <li>🔴 Não estar cumprindo <b>aviso prévio</b>.</li>
                   <li>🔴 Ficar atento ao pedir vale em período de <b>FÉRIAS</b>.</li>
                 </ul>

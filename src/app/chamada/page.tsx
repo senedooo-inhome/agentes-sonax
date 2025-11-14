@@ -23,6 +23,17 @@ function dataLocalYYYYMMDD() {
   return `${ano}-${mes}-${dia}`
 }
 
+/* ====== MESMO MENU DO INÍCIO (com Ausências) ====== */
+const menuLinks: Array<{
+  href: string
+  label: string
+  bordered?: boolean
+  color?: 'gray'
+}> = [
+
+ 
+]
+
 export default function ChamadaPage() {
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [marcasHoje, setMarcasHoje] = useState<Record<string, TipoMarca>>({})
@@ -68,7 +79,7 @@ export default function ChamadaPage() {
     setMarcasHoje(map)
   }
 
-  // remover marcação do dia e voltar agente para Ativo
+  // remove do dia e volta o agente pra Ativo
   async function removerPresenca(agenteId: string) {
     try {
       setLoading(true)
@@ -78,7 +89,10 @@ export default function ChamadaPage() {
         .eq('agente_id', agenteId)
         .eq('data_registro', hoje)
 
-      await supabase.from('agentes').update({ status: 'Ativo' }).eq('id', agenteId)
+      await supabase
+        .from('agentes')
+        .update({ status: 'Ativo' })
+        .eq('id', agenteId)
 
       setMarcasHoje(prev => {
         const novo = { ...prev }
@@ -96,7 +110,7 @@ export default function ChamadaPage() {
     }
   }
 
-  // marcar e gravar o mesmo motivo no agente
+  // marca e grava o mesmo motivo no agente
   async function registrar(agenteId: string, tipo: TipoMarca) {
     try {
       setLoading(true)
@@ -115,7 +129,10 @@ export default function ChamadaPage() {
       }
 
       const novoStatus = tipo === 'Presente' ? 'Ativo' : tipo
-      await supabase.from('agentes').update({ status: novoStatus }).eq('id', agenteId)
+      await supabase
+        .from('agentes')
+        .update({ status: novoStatus })
+        .eq('id', agenteId)
 
       setMarcasHoje(prev => ({ ...prev, [agenteId]: tipo }))
       setAgentes(prev =>
@@ -178,28 +195,34 @@ export default function ChamadaPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[#2687e2]">Data — {hoje}</h1>
           <div className="flex items-center gap-2 flex-wrap">
-            <a href="/" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Início</a>
-            <span className="rounded-lg bg-gray-300 px-1 py-1 text-sm font-semibold text-gray-800 cursor-default">Chamada</span>
-            <a href="/relatorios" className="rounded-lg border border-[#2687e2] px-2 py-1 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white">Relatórios</a>
-            <a href="/campanhas" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Campanhas</a>
-            <a href="/erros" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Erros</a>
-            <a href="/advertencias" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Advertências</a>
-            <a href="/atestados" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Atestados</a>
-            <a href="/ligacoes" className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600">Ligações Ativas</a>
-            <a href="/login?logout=1" className="rounded-lg bg-gray-500 px-2 py-1 text-sm font-semibold text-white hover:bg-gray-600">Sair</a>
+            {menuLinks.map(link => (
+              <a
+                key={link.href}
+                href={link.href}
+                className={`rounded-lg px-2 py-1 text-sm font-semibold ${
+                  link.bordered
+                    ? 'border border-[#2687e2] text-[#2687e2] hover:bg-[#2687e2] hover:text-white'
+                    : link.color === 'gray'
+                    ? 'bg-gray-500 text-white hover:bg-gray-600'
+                    : 'bg-[#2687e2] text-white hover:bg-blue-600'
+                }`}
+              >
+                {link.label}
+              </a>
+            ))}
           </div>
         </div>
 
         {/* grid */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* chamada */}
+          {/* CHAMADA */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
             <div className="mb-3 flex items-center gap-2">
               <input
                 type="text"
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={e => setQ(e.target.value)}
                 placeholder="Buscar agente…"
                 className="w-full rounded-lg border p-2 text-black"
               />
@@ -217,17 +240,10 @@ export default function ChamadaPage() {
             </p>
 
             <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-              {agentesFiltrados.map((a) => {
+              {agentesFiltrados.map(a => {
                 const marcado = marcasHoje[a.id] as TipoMarca | undefined
                 const temMarcacaoHoje = Boolean(marcado)
                 const estaAusentePeloStatus = !temMarcacaoHoje && a.status !== 'Ativo'
-
-                // ⬇️ valor que o select deve mostrar
-                const valorSelect = temMarcacaoHoje
-                  ? marcado!
-                  : estaAusentePeloStatus
-                    ? (a.status as TipoMarca)
-                    : ''
 
                 return (
                   <li
@@ -242,8 +258,8 @@ export default function ChamadaPage() {
 
                       <select
                         disabled={loading}
-                        value={valorSelect}
-                        onChange={(e) => {
+                        value={temMarcacaoHoje ? marcado! : ''}
+                        onChange={e => {
                           const val = e.target.value
                           if (val === '__remover') {
                             removerPresenca(a.id)
@@ -253,16 +269,14 @@ export default function ChamadaPage() {
                         }}
                         className="rounded-lg border p-2 text-black"
                       >
-                        {/* quando não tem nada nem status, aparece Marcar… */}
                         <option
                           value=""
-                          disabled={valorSelect !== ''}
-                          hidden={valorSelect !== ''}
+                          disabled={!temMarcacaoHoje}
+                          hidden={temMarcacaoHoje}
                         >
-                          {valorSelect ? 'Alterar…' : 'Marcar…'}
+                          {temMarcacaoHoje ? 'Alterar…' : 'Marcar…'}
                         </option>
 
-                        {/* se ele está ausente só pelo status (ex: Atestado), mostra o remover */}
                         {(temMarcacaoHoje || estaAusentePeloStatus) && (
                           <option value="__remover">❌ Remover marcação</option>
                         )}
@@ -283,14 +297,14 @@ export default function ChamadaPage() {
             </ul>
           </div>
 
-          {/* quem logou */}
+          {/* QUEM LOGOU */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
             {listaPresente.length === 0 ? (
               <p className="text-gray-500">Ninguém marcado como Presente.</p>
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaPresente.map((a) => (
+                {listaPresente.map(a => (
                   <li
                     key={a.id}
                     className="rounded-lg border p-3 font-medium text-black"
@@ -303,14 +317,14 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* ainda não logaram */}
+          {/* AINDA NÃO LOGARAM */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
             {listaNaoLogou.length === 0 ? (
               <p className="text-gray-500">Todos já marcaram presença hoje 🎉</p>
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaNaoLogou.map((a) => (
+                {listaNaoLogou.map(a => (
                   <li
                     key={a.id}
                     className="rounded-lg border p-3 font-medium text-black"
@@ -323,14 +337,14 @@ export default function ChamadaPage() {
             )}
           </div>
 
-          {/* ausência */}
+          {/* AUSÊNCIA */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
             {listaAusencias.length === 0 ? (
               <p className="text-gray-500">Sem ausências registradas hoje.</p>
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaAusencias.map((a) => (
+                {listaAusencias.map(a => (
                   <li
                     key={a.id}
                     className="rounded-lg border p-3 font-medium text-black"

@@ -187,43 +187,7 @@ useEffect(() => {
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* topo */}
-      <header className="flex items-center justify-between">
-  <h1 className="text-2xl font-bold text-[#2687e2]">Relatórios — Ligações Ativas</h1>
-
-  <div className="flex gap-2 flex-wrap">
-    {/* Início */}
-    <a
-      href="/"
-      className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Início
-    </a>
-
-    {/* Chamada */}
-    <a
-      href="/chamada"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Chamada
-    </a>
-
-    {/* Campanhas */}
-    <a
-      href="/campanhas"
-      className="rounded-lg bg-[#2687e2] px-1 py-1 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Campanhas
-    </a>
-
-    {/* Ligações (formulário atual) */}
-    <a
-      href="/ligacoes"
-      className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600"
-    >
-      Ligações Ativas
-    </a>
-  </div>
-</header>
+      
 
 
         {/* filtros */}

@@ -1,7 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+
+type Agente = {
+  id: string
+  nomeBruto: string
+  nomeLimpo: string
+}
+
+function limparNomeAgente(nomeBruto: string): string {
+  if (!nomeBruto) return ''
+
+  let nome = nomeBruto
+
+  // remove prefixo "05 - " ou "123 - "
+  nome = nome.replace(/^\d+\s*-\s*/, '')
+
+  // remove parte do horário "07h as 15h12" pra frente
+  nome = nome.replace(/\d{1,2}h.*$/i, '')
+
+  return nome.trim()
+}
 
 export default function ErrosFormPage() {
   const hoje = new Date().toISOString().slice(0, 10)
@@ -15,6 +35,42 @@ export default function ErrosFormPage() {
     relato: '',
   })
   const [salvando, setSalvando] = useState(false)
+
+  // Lista de agentes cadastrados
+  const [agentes, setAgentes] = useState<Agente[]>([])
+  const [carregandoAgentes, setCarregandoAgentes] = useState(true)
+
+  // Carregar agentes ATIVOS da tabela "agentes"
+  useEffect(() => {
+    async function carregarAgentes() {
+      try {
+        setCarregandoAgentes(true)
+        const { data, error } = await supabase
+          .from('agentes')
+          .select('id, nome, status')
+          .eq('status', 'Ativo')
+          .order('nome', { ascending: true })
+
+        if (error) throw error
+
+        const lista: Agente[] =
+          (data || []).map((a: any) => ({
+            id: a.id,
+            nomeBruto: a.nome,
+            nomeLimpo: limparNomeAgente(a.nome),
+          })) ?? []
+
+        setAgentes(lista)
+      } catch (err) {
+        console.error('Erro ao carregar agentes', err)
+        alert('Não foi possível carregar a lista de agentes.')
+      } finally {
+        setCarregandoAgentes(false)
+      }
+    }
+
+    carregarAgentes()
+  }, [])
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -35,6 +91,7 @@ export default function ErrosFormPage() {
         {
           data: form.data,
           supervisor: form.supervisor.trim(),
+          // salvamos o NOME LIMPO na tabela de erros
           agente: form.agente.trim(),
           nicho: form.nicho.trim(),
           tipo: form.tipo.trim(),
@@ -75,8 +132,6 @@ export default function ErrosFormPage() {
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-3xl space-y-6">
-   
-
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
           <form onSubmit={salvar} className="space-y-4">
             <div>
@@ -106,23 +161,35 @@ export default function ErrosFormPage() {
                   placeholder="Ex.: MARCO"
                 />
               </div>
+
+              {/* SELECT de agentes (nome limpo) */}
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Nome do agente pontuado
                 </label>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border p-2 text-[#535151]"
+                <select
+                  className="w-full rounded-lg border p-2 text-[#535151] bg-white"
                   value={form.agente}
                   onChange={(e) =>
                     setForm({ ...form, agente: e.target.value })
                   }
-                  placeholder="Ex.: JOANA"
-                />
+                  disabled={carregandoAgentes}
+                >
+                  <option value="">
+                    {carregandoAgentes
+                      ? 'Carregando agentes...'
+                      : 'Selecione o agente'}
+                  </option>
+                  {agentes.map((a) => (
+                    <option key={a.id} value={a.nomeLimpo}>
+                      {a.nomeLimpo}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Novo campo: Nicho */}
+            {/* Nicho */}
             <div>
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                 Nicho do agente
@@ -141,6 +208,7 @@ export default function ErrosFormPage() {
               </select>
             </div>
 
+            {/* Tipo do erro */}
             <div>
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                 Tipo do erro
@@ -159,6 +227,7 @@ export default function ErrosFormPage() {
               </select>
             </div>
 
+            {/* Relato */}
             <div>
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                 Relato do erro

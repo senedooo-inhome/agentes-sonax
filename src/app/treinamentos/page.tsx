@@ -76,7 +76,8 @@ export default function TreinamentosPage() {
     <div className="w-full min-h-screen bg-[#f6f7fb] p-6">
       <div className="max-w-4xl mx-auto bg-white rounded-xl p-6 shadow">
 
-        <h1 className="text-2xl font-bold text-[#ff6b00] mb-6">
+        <h1 className="text-2xl font-normal text-[#ff9e61] mb-6">
+
           Cadastrar Novo Treinamento
         </h1>
 
@@ -84,7 +85,8 @@ export default function TreinamentosPage() {
         <form onSubmit={salvarTreinamento} className="grid gap-4">
 
           <div>
-            <label className="text-[#ff6b00] font-semibold">Data</label>
+            <label className="text-[#ff9e61] font-normal">
+Data</label>
             <input
               type="date"
               value={dataTreinamento}

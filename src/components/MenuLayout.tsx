@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 
 const menuLinks = [
+  { href: '/dashboard', label: 'Dashboard' },
+
   { href: '/', label: 'Início' },
   {
     href: '/chamada',

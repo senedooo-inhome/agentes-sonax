@@ -33,7 +33,7 @@ export default function TreinamentosPage() {
   }, [])
 
   // Cadastrar
-  async function salvarTreinamento(e: any) {
+  async function salvarTreinamento(e: React.FormEvent) {
     e.preventDefault()
 
     if (!lider || !operador || !empresa || !dataTreinamento) {
@@ -75,68 +75,64 @@ export default function TreinamentosPage() {
   return (
     <div className="w-full min-h-screen bg-[#f6f7fb] p-6">
       <div className="max-w-4xl mx-auto bg-white rounded-xl p-6 shadow">
-
-        <h1 className="text-2xl font-normal text-[#ff9e61] mb-6">
-
+        <h1 className="text-2xl font-bold text-[#ff9e61] mb-6">
           Cadastrar Novo Treinamento
         </h1>
 
         {/* FORM */}
         <form onSubmit={salvarTreinamento} className="grid gap-4">
-
           <div>
-            <label className="text-[#ff9e61] font-normal">
-Data</label>
+            <label className="text-[#ff9e61] font-normal">Data</label>
             <input
               type="date"
               value={dataTreinamento}
               onChange={e => setDataTreinamento(e.target.value)}
-              className="w-full border rounded-lg p-2 mt-1"
+              className="w-full border rounded-lg p-2 mt-1 text-[#394250] placeholder-[#394250]"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-[#ff6b00] font-semibold">
+              <label className="text-[#ff9e61] font-normal">
                 Líder / Supervisor
               </label>
               <input
                 value={lider}
                 onChange={e => setLider(e.target.value)}
                 placeholder="Ex.: MARCO"
-                className="w-full border rounded-lg p-2 mt-1"
+                className="w-full border rounded-lg p-2 mt-1 text-[#394250] placeholder-[#394250]"
               />
             </div>
 
             <div>
-              <label className="text-[#ff6b00] font-semibold">
+              <label className="text-[#ff9e61] font-normal">
                 Nome do Agente
               </label>
               <input
                 value={operador}
                 onChange={e => setOperador(e.target.value)}
                 placeholder="Ex.: JOANA"
-                className="w-full border rounded-lg p-2 mt-1"
+                className="w-full border rounded-lg p-2 mt-1 text-[#394250] placeholder-[#394250]"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[#ff6b00] font-semibold">Empresa</label>
+            <label className="text-[#ff9e61] font-normal">Empresa</label>
             <input
               value={empresa}
               onChange={e => setEmpresa(e.target.value)}
               placeholder="Ex.: Ezvolt"
-              className="w-full border rounded-lg p-2 mt-1"
+              className="w-full border rounded-lg p-2 mt-1 text-[#394250] placeholder-[#394250]"
             />
           </div>
 
           <div>
-            <label className="text-[#ff6b00] font-semibold">Status</label>
+            <label className="text-[#ff9e61] font-normal">Status</label>
             <select
               value={status}
               onChange={e => setStatus(e.target.value)}
-              className="w-full border rounded-lg p-2 mt-1"
+              className="w-full border rounded-lg p-2 mt-1 text-[#394250]"
             >
               <option value="Aberto">Aberto</option>
               <option value="Em andamento">Em andamento</option>
@@ -145,13 +141,11 @@ Data</label>
           </div>
 
           <div>
-            <label className="text-[#ff6b00] font-semibold">
-              Observações
-            </label>
+            <label className="text-[#ff9e61] font-normal">Observações</label>
             <textarea
               value={observacoes}
               onChange={e => setObservacoes(e.target.value)}
-              className="w-full border rounded-lg p-2 mt-1 min-h-[80px]"
+              className="w-full border rounded-lg p-2 mt-1 min-h-[80px] text-[#394250] placeholder-[#394250]"
               placeholder="Informações adicionais..."
             />
           </div>
@@ -166,7 +160,7 @@ Data</label>
         </form>
 
         {/* LISTA */}
-        <h2 className="text-xl font-bold mt-10 mb-4 text-[#ff6b00]">
+        <h2 className="text-xl font-normal mt-10 mb-4 text-[#ff9e61]">
           Treinamentos Cadastrados
         </h2>
 
@@ -176,26 +170,43 @@ Data</label>
               key={t.id}
               className="bg-white border rounded-lg p-4 shadow-sm"
             >
-              <p className="text-sm">
-                <strong>Agente:</strong> {t.operador}
+              <p className="text-sm text-[#394250]">
+                <strong className="font-semibold text-[#394250]">
+                  Agente:
+                </strong>{' '}
+                {t.operador}
               </p>
-              <p className="text-sm">
-                <strong>Líder:</strong> {t.lider}
+              <p className="text-sm text-[#394250]">
+                <strong className="font-semibold text-[#394250]">
+                  Líder:
+                </strong>{' '}
+                {t.lider}
               </p>
-              <p className="text-sm">
-                <strong>Empresa:</strong> {t.empresa}
+              <p className="text-sm text-[#394250]">
+                <strong className="font-semibold text-[#394250]">
+                  Empresa:
+                </strong>{' '}
+                {t.empresa}
               </p>
-              <p className="text-sm">
-                <strong>Data:</strong>{' '}
+              <p className="text-sm text-[#394250]">
+                <strong className="font-semibold text-[#394250]">
+                  Data:
+                </strong>{' '}
                 {new Date(t.data_treinamento).toLocaleDateString('pt-BR')}
               </p>
-              <p className="text-sm">
-                <strong>Status:</strong> {t.status}
+              <p className="text-sm text-[#394250]">
+                <strong className="font-semibold text-[#394250]">
+                  Status:
+                </strong>{' '}
+                {t.status}
               </p>
 
               {t.observacoes && (
-                <p className="text-sm mt-2">
-                  <strong>OBS:</strong> {t.observacoes}
+                <p className="text-sm mt-2 text-[#394250]">
+                  <strong className="font-semibold text-[#394250]">
+                    OBS:
+                  </strong>{' '}
+                  {t.observacoes}
                 </p>
               )}
             </div>

@@ -10,6 +10,7 @@ const menuLinks = [
     label: 'Chamada',
     sub: [{ href: '/chamada/relatorio', label: 'Relatório de Chamada' }],
   },
+   { href: '/treinamentos', label: 'Treinamentos' },
   {
     href: '/erros',
     label: 'Erros',

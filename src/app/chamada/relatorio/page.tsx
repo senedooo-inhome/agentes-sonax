@@ -8,12 +8,13 @@ type Linha = {
   status_agente: string
   data_registro: string
   tipo: string
-  created_at: string   // 👈 novo
+  created_at: string
 }
 
-// todos os tipos de marcação contemplados
+// ✅ inclui plantão
 const TIPOS = [
   'Presente',
+  'Plantão Final de Semana',
   'Folga',
   'Férias',
   'Atestado',
@@ -40,6 +41,14 @@ export default function RelatoriosPage() {
     setTiposSelecionados(prev =>
       prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
     )
+
+  function selecionarSomentePlantoes() {
+    setTiposSelecionados(['Plantão Final de Semana'])
+  }
+
+  function selecionarTodos() {
+    setTiposSelecionados([...TIPOS])
+  }
 
   function atalhoHoje() {
     const d = new Date().toISOString().slice(0, 10)
@@ -86,7 +95,6 @@ export default function RelatoriosPage() {
 
       if (error) throw error
 
-      // filtra pelos tipos marcados
       const filtradas = (data ?? []).filter((p: any) =>
         tiposSelecionados.includes(p.tipo)
       )
@@ -97,16 +105,11 @@ export default function RelatoriosPage() {
         status_agente: p.agentes?.status ?? '-',
         data_registro: p.data_registro,
         tipo: p.tipo,
-        created_at: p.created_at, // 👈 vem do banco
+        created_at: p.created_at,
       }))
 
-      // ordena pelo momento que foi criado (mais recente em cima)
       linhasFmt.sort((a, b) => {
-        // se tiver created_at usa ele
-        if (a.created_at && b.created_at) {
-          return b.created_at.localeCompare(a.created_at)
-        }
-        // fallback pra data_registro
+        if (a.created_at && b.created_at) return b.created_at.localeCompare(a.created_at)
         return b.data_registro.localeCompare(a.data_registro)
       })
 
@@ -123,10 +126,10 @@ export default function RelatoriosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // cores por tipo
   function corTipo(tipo: string) {
     switch (tipo) {
       case 'Presente': return '#46a049'
+      case 'Plantão Final de Semana': return '#7c3aed' // ✅ roxo
       case 'Folga': return '#42a5f5'
       case 'Férias': return '#f19a37'
       case 'Atestado': return '#e53935'
@@ -138,7 +141,6 @@ export default function RelatoriosPage() {
     }
   }
 
-  // normaliza para busca (remove acentos e ignora caixa)
   function norm(s: string) {
     return (s || '')
       .normalize('NFD')
@@ -146,14 +148,12 @@ export default function RelatoriosPage() {
       .toLowerCase()
   }
 
-  // filtra por nome no resultado carregado
   const linhasVisiveis = useMemo(() => {
     if (!q.trim()) return linhas
     const nq = norm(q)
     return linhas.filter(l => norm(l.nome).includes(nq))
   }, [linhas, q])
 
-  // --------- EXPORTAÇÃO CSV (usa linhasVisiveis) ----------
   function csvEscape(value: string) {
     return `"${(value ?? '').replace(/"/g, '""')}"`
   }
@@ -186,13 +186,10 @@ export default function RelatoriosPage() {
     a.remove()
     URL.revokeObjectURL(url)
   }
-  // -------------------------------------------------------
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        
-
         {/* FILTROS */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -259,9 +256,10 @@ export default function RelatoriosPage() {
             </span>
           </div>
 
-          {/* Tipos */}
+          {/* Tipos + Atalhos */}
           <div className="mt-2 flex flex-wrap items-center gap-4">
             <span className="text-sm font-medium text-gray-700">Tipos:</span>
+
             {TIPOS.map(t => (
               <label key={t} className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={tipoMarcado(t)} onChange={() => toggleTipo(t)} />
@@ -271,7 +269,23 @@ export default function RelatoriosPage() {
               </label>
             ))}
 
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex flex-wrap gap-2">
+              <button
+                onClick={selecionarSomentePlantoes}
+                className="rounded-lg border border-[#7c3aed] px-3 py-2 text-sm font-semibold text-[#7c3aed] hover:bg-[#7c3aed] hover:text-white"
+                title="Filtrar apenas Plantão Final de Semana"
+              >
+                Somente Plantões
+              </button>
+
+              <button
+                onClick={selecionarTodos}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                title="Marcar todos os tipos"
+              >
+                Selecionar todos
+              </button>
+
               <button
                 onClick={buscar}
                 disabled={carregando}

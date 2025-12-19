@@ -6,6 +6,7 @@ type Agente = { id: string; nome: string; status: string }
 
 type TipoMarca =
   | 'Presente'
+  | 'Plantão Final de Semana'
   | 'Folga'
   | 'Férias'
   | 'Atestado'
@@ -30,8 +31,7 @@ const menuLinks: Array<{
   bordered?: boolean
   color?: 'gray'
 }> = [
-
- 
+  // adicione seus links aqui se quiser
 ]
 
 export default function ChamadaPage() {
@@ -41,9 +41,14 @@ export default function ChamadaPage() {
   const [q, setQ] = useState('')
   const hoje = dataLocalYYYYMMDD()
 
+  // ✅ presença (não entra como ausência)
+  const ehPresenca = (t?: TipoMarca) => t === 'Presente' || t === 'Plantão Final de Semana'
+
   const opcoes = useMemo(
     () => [
       { value: 'Presente' as const, label: 'Presente', badge: '✅', cor: '#46a049' },
+      { value: 'Plantão Final de Semana' as const, label: 'Plantão Final de Semana', badge: '🛡️', cor: '#00897b' },
+
       { value: 'Folga' as const, label: 'Folga', badge: '🟦', cor: '#42a5f5' },
       { value: 'Férias' as const, label: 'Férias', badge: '🏖️', cor: '#f19a37' },
       { value: 'Atestado' as const, label: 'Atestado', badge: '🩺', cor: '#e53935' },
@@ -58,6 +63,7 @@ export default function ChamadaPage() {
   useEffect(() => {
     carregarAgentes()
     carregarPresencas(hoje)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function carregarAgentes() {
@@ -121,14 +127,21 @@ export default function ChamadaPage() {
         })
 
       if (error) {
-        await supabase.from('presencas').delete().eq('agente_id', agenteId).eq('data_registro', hoje)
+        await supabase
+          .from('presencas')
+          .delete()
+          .eq('agente_id', agenteId)
+          .eq('data_registro', hoje)
+
         const { error: e2 } = await supabase
           .from('presencas')
           .insert([{ agente_id: agenteId, data_registro: hoje, tipo }])
         if (e2) throw e2
       }
 
+      // ✅ agora Plantão também vira status do agente (pra aparecer no nome)
       const novoStatus = tipo === 'Presente' ? 'Ativo' : tipo
+
       await supabase
         .from('agentes')
         .update({ status: novoStatus })
@@ -148,6 +161,7 @@ export default function ChamadaPage() {
   function corStatusAgente(s: string) {
     switch (s) {
       case 'Ativo': return '#46a049'
+      case 'Plantão Final de Semana': return '#00897b'
       case 'Férias': return '#f19a37'
       case 'Atestado': return '#e53935'
       case 'Folga': return '#42a5f5'
@@ -173,20 +187,26 @@ export default function ChamadaPage() {
     return agentes.filter(a => norm(a.nome).includes(nq))
   }, [agentes, q])
 
-  const listaPresente = agentes.filter(a => marcasHoje[a.id] === 'Presente')
+  // ✅ Presente + Plantão contam como "logou"
+  const listaPresente = agentes.filter(a => ehPresenca(marcasHoje[a.id]))
+
   const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
 
-  // ausência = marcou hoje OU status diferente de Ativo
+  // ausência = marcou hoje (mas NÃO é presença) OU status diferente de Ativo (e NÃO é Plantão)
   const listaAusencias = agentes
     .map(a => {
       const tipoHoje = marcasHoje[a.id] as TipoMarca | undefined
+
       const motivo: TipoMarca | undefined =
-        tipoHoje && tipoHoje !== 'Presente'
+        tipoHoje && !ehPresenca(tipoHoje)
           ? tipoHoje
-          : (a.status !== 'Ativo' ? (a.status as TipoMarca) : undefined)
+          : (a.status !== 'Ativo' && a.status !== 'Plantão Final de Semana'
+              ? (a.status as TipoMarca)
+              : undefined)
+
       return { ...a, tipo: motivo }
     })
-    .filter(a => a.tipo && a.tipo !== 'Presente') as (Agente & { tipo: TipoMarca })[]
+    .filter(a => a.tipo) as (Agente & { tipo: TipoMarca })[]
 
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-8">
@@ -218,6 +238,7 @@ export default function ChamadaPage() {
           {/* CHAMADA */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
+
             <div className="mb-3 flex items-center gap-2">
               <input
                 type="text"
@@ -235,6 +256,7 @@ export default function ChamadaPage() {
                 </button>
               )}
             </div>
+
             <p className="text-xs text-gray-500 mb-2">
               {agentesFiltrados.length} de {agentes.length} agentes
             </p>
@@ -243,7 +265,10 @@ export default function ChamadaPage() {
               {agentesFiltrados.map(a => {
                 const marcado = marcasHoje[a.id] as TipoMarca | undefined
                 const temMarcacaoHoje = Boolean(marcado)
-                const estaAusentePeloStatus = !temMarcacaoHoje && a.status !== 'Ativo'
+                const estaAusentePeloStatus =
+                  !temMarcacaoHoje &&
+                  a.status !== 'Ativo' &&
+                  a.status !== 'Plantão Final de Semana'
 
                 return (
                   <li
@@ -291,6 +316,7 @@ export default function ChamadaPage() {
                   </li>
                 )
               })}
+
               {agentesFiltrados.length === 0 && (
                 <p className="text-gray-500">Nenhum agente encontrado.</p>
               )}
@@ -300,19 +326,27 @@ export default function ChamadaPage() {
           {/* QUEM LOGOU */}
           <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
+
             {listaPresente.length === 0 ? (
-              <p className="text-gray-500">Ninguém marcado como Presente.</p>
+              <p className="text-gray-500">Ninguém marcado como Presente/Plantão.</p>
             ) : (
               <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaPresente.map(a => (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: '6px solid #46a049' }}
-                  >
-                    {a.nome} — ✅ Presente
-                  </li>
-                ))}
+                {listaPresente.map(a => {
+                  const tipo = marcasHoje[a.id]
+                  const badge = opcoes.find(o => o.value === tipo)?.badge ?? '✅'
+                  const label = opcoes.find(o => o.value === tipo)?.label ?? 'Presente'
+                  const cor = tipo ? corTipo(tipo) : '#46a049'
+
+                  return (
+                    <li
+                      key={a.id}
+                      className="rounded-lg border p-3 font-medium text-black"
+                      style={{ borderLeft: `6px solid ${cor}` }}
+                    >
+                      {a.nome} — {badge} {label}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

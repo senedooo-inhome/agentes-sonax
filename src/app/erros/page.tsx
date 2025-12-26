@@ -7,6 +7,7 @@ type Agente = {
   id: string
   nomeBruto: string
   nomeLimpo: string
+  status: string
 }
 
 function limparNomeAgente(nomeBruto: string): string {
@@ -40,7 +41,7 @@ export default function ErrosFormPage() {
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [carregandoAgentes, setCarregandoAgentes] = useState(true)
 
-  // Carregar agentes ATIVOS da tabela "agentes"
+  // Carregar TODOS os agentes da tabela "agentes"
   useEffect(() => {
     async function carregarAgentes() {
       try {
@@ -48,7 +49,6 @@ export default function ErrosFormPage() {
         const { data, error } = await supabase
           .from('agentes')
           .select('id, nome, status')
-          .eq('status', 'Ativo')
           .order('nome', { ascending: true })
 
         if (error) throw error
@@ -58,6 +58,7 @@ export default function ErrosFormPage() {
             id: a.id,
             nomeBruto: a.nome,
             nomeLimpo: limparNomeAgente(a.nome),
+            status: a.status,
           })) ?? []
 
         setAgentes(lista)
@@ -162,7 +163,7 @@ export default function ErrosFormPage() {
                 />
               </div>
 
-              {/* SELECT de agentes (nome limpo) */}
+              {/* SELECT de agentes (nome limpo + status) */}
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Nome do agente pontuado
@@ -182,7 +183,7 @@ export default function ErrosFormPage() {
                   </option>
                   {agentes.map((a) => (
                     <option key={a.id} value={a.nomeLimpo}>
-                      {a.nomeLimpo}
+                      {a.nomeLimpo} {a.status !== 'Ativo' ? '(Inativo)' : ''}
                     </option>
                   ))}
                 </select>

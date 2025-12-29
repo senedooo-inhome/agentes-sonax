@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 type Agente = {
@@ -24,24 +24,33 @@ function limparNomeAgente(nomeBruto: string): string {
   return nome.trim()
 }
 
+function normalizarNome(nome: string): string {
+  return (nome || '').toString().trim()
+}
+
 export default function ErrosFormPage() {
   const hoje = new Date().toISOString().slice(0, 10)
 
   const [form, setForm] = useState({
     data: hoje,
-    supervisor: '',
-    agente: '',
+    supervisor: '', // supervisoes.nome
+    agente: '', // agentes.nome (limpo)
     nicho: '',
     tipo: '',
     relato: '',
   })
+
   const [salvando, setSalvando] = useState(false)
 
-  // Lista de agentes cadastrados
+  // Lista de agentes (tabela: agentes)
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [carregandoAgentes, setCarregandoAgentes] = useState(true)
 
-  // Carregar TODOS os agentes da tabela "agentes"
+  // Lista de supervisores (tabela: supervisoes)
+  const [supervisores, setSupervisores] = useState<string[]>([])
+  const [carregandoSupervisores, setCarregandoSupervisores] = useState(true)
+
+  // Carregar agentes
   useEffect(() => {
     async function carregarAgentes() {
       try {
@@ -73,33 +82,74 @@ export default function ErrosFormPage() {
     carregarAgentes()
   }, [])
 
+  // Carregar supervisores (supervisoes.nome) e deduplicar
+  useEffect(() => {
+    async function carregarSupervisores() {
+      try {
+        setCarregandoSupervisores(true)
+
+        const { data, error } = await supabase
+          .from('supervisoes')
+          .select('nome')
+          .not('nome', 'is', null)
+          .order('nome', { ascending: true })
+
+        if (error) throw error
+
+        // Dedup + trim (evita nomes repetidos por espaços)
+        const mapa = new Map<string, string>()
+        for (const row of data || []) {
+          const raw = normalizarNome((row as any)?.nome)
+          if (!raw) continue
+          const key = raw.toLowerCase()
+          if (!mapa.has(key)) mapa.set(key, raw)
+        }
+
+        setSupervisores(Array.from(mapa.values()).sort((a, b) => a.localeCompare(b)))
+      } catch (err) {
+        console.error('Erro ao carregar supervisores', err)
+        alert('Não foi possível carregar a lista de supervisores.')
+      } finally {
+        setCarregandoSupervisores(false)
+      }
+    }
+
+    carregarSupervisores()
+  }, [])
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
+
     if (
+      !form.data.trim() ||
       !form.supervisor.trim() ||
       !form.agente.trim() ||
       !form.nicho.trim() ||
       !form.tipo.trim() ||
       !form.relato.trim()
     ) {
-      alert('Preencha Data, Supervisor, Agente, Nicho, Tipo e Relato.')
+      alert(
+        'Preencha Data, Supervisão responsável, Pessoa responsável pela ligação, Nicho, Tipo e Relato.'
+      )
       return
     }
 
     try {
       setSalvando(true)
+
       const { error } = await supabase.from('erros_agentes').insert([
         {
           data: form.data,
           supervisor: form.supervisor.trim(),
-          // salvamos o NOME LIMPO na tabela de erros
           agente: form.agente.trim(),
           nicho: form.nicho.trim(),
           tipo: form.tipo.trim(),
           relato: form.relato.trim(),
         },
       ])
+
       if (error) throw error
+
       alert('Registro salvo!')
       setForm({
         data: hoje,
@@ -110,7 +160,7 @@ export default function ErrosFormPage() {
         relato: '',
       })
     } catch (err: any) {
-      alert('Erro ao salvar: ' + err.message)
+      alert('Erro ao salvar: ' + (err?.message ?? 'Erro desconhecido'))
     } finally {
       setSalvando(false)
     }
@@ -130,11 +180,19 @@ export default function ErrosFormPage() {
 
   const nichos = ['Clínica', 'SAC']
 
+  // (Opcional) mostrar ativos primeiro
+  const agentesOrdenados = useMemo(() => {
+    const ativos = agentes.filter((a) => (a.status || '').toLowerCase() === 'ativo')
+    const outros = agentes.filter((a) => (a.status || '').toLowerCase() !== 'ativo')
+    return [...ativos, ...outros]
+  }, [agentes])
+
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
           <form onSubmit={salvar} className="space-y-4">
+            {/* Data */}
             <div>
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                 Data
@@ -148,32 +206,42 @@ export default function ErrosFormPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Supervisão responsável (select) */}
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                  Nome do supervisor
+                  Supervisão responsável
                 </label>
-                <input
-                  type="text"
-                  className="w-full rounded-lg border p-2 text-[#535151]"
+                <select
+                  className="w-full rounded-lg border p-2 text-[#535151] bg-white"
                   value={form.supervisor}
                   onChange={(e) =>
                     setForm({ ...form, supervisor: e.target.value })
                   }
-                  placeholder="Ex.: MARCO"
-                />
+                  disabled={carregandoSupervisores}
+                >
+                  <option value="">
+                    {carregandoSupervisores
+                      ? 'Carregando supervisores...'
+                      : 'Selecione a supervisão'}
+                  </option>
+
+                  {supervisores.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* SELECT de agentes (nome limpo + status) */}
+              {/* Pessoa responsável pela ligação (select de agentes) */}
               <div>
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                  Nome do agente pontuado
+                  Pessoa responsável pela ligação
                 </label>
                 <select
                   className="w-full rounded-lg border p-2 text-[#535151] bg-white"
                   value={form.agente}
-                  onChange={(e) =>
-                    setForm({ ...form, agente: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, agente: e.target.value })}
                   disabled={carregandoAgentes}
                 >
                   <option value="">
@@ -181,7 +249,8 @@ export default function ErrosFormPage() {
                       ? 'Carregando agentes...'
                       : 'Selecione o agente'}
                   </option>
-                  {agentes.map((a) => (
+
+                  {agentesOrdenados.map((a) => (
                     <option key={a.id} value={a.nomeLimpo}>
                       {a.nomeLimpo} {a.status !== 'Ativo' ? '(Inativo)' : ''}
                     </option>
@@ -237,9 +306,7 @@ export default function ErrosFormPage() {
                 rows={5}
                 className="w-full rounded-lg border p-2 text-[#535151]"
                 value={form.relato}
-                onChange={(e) =>
-                  setForm({ ...form, relato: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, relato: e.target.value })}
                 placeholder="Descreva o ocorrido, contexto e evidências…"
               />
             </div>

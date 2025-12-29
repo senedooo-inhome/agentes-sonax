@@ -24,7 +24,7 @@ ChartJS.register(
   Legend
 )
 
-// ✅ Plugin para escrever valor em cima das barras (agora em tema claro)
+// ✅ Plugin para escrever valor em cima das barras (tema claro)
 const topValuePlugin: any = {
   id: 'topValue',
   afterDatasetsDraw(chart: any) {
@@ -36,7 +36,7 @@ const topValuePlugin: any = {
     ctx.font = '700 12px system-ui'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
-    ctx.fillStyle = '#111827' // ✅ escuro (tema branco)
+    ctx.fillStyle = '#111827'
 
     meta.data.forEach((bar: any, index: number) => {
       const value = dataset.data[index] as number
@@ -69,6 +69,12 @@ type PlantaoLinha = {
   qtd: number
 }
 
+type EmpresaSemAtendimentoLinha = {
+  empresa: string
+  dias: number[]
+  responsavel?: string | null
+}
+
 function getMesAtualInfo() {
   const hoje = new Date()
   const ano = hoje.getFullYear()
@@ -78,8 +84,18 @@ function getMesAtualInfo() {
 
   const toISODate = (d: Date) => d.toISOString().split('T')[0]
   const meses = [
-    'janeiro','fevereiro','março','abril','maio','junho',
-    'julho','agosto','setembro','outubro','novembro','dezembro',
+    'janeiro',
+    'fevereiro',
+    'março',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro',
   ]
 
   return {
@@ -89,6 +105,10 @@ function getMesAtualInfo() {
     inicio: toISODate(primeiroDia),
     fim: toISODate(ultimoDia),
   }
+}
+
+function formatDia(d: number) {
+  return String(d).padStart(2, '0')
 }
 
 export default function DashboardPage() {
@@ -110,6 +130,11 @@ export default function DashboardPage() {
 
   // ✅ PLANTÕES (mês)
   const [plantoesPorAgente, setPlantoesPorAgente] = useState<PlantaoLinha[]>([])
+
+  // ✅ NOVO: Empresas que NÃO desejam atendimento no mês (status_operacao = "Não")
+  const [empresasSemAtendimento, setEmpresasSemAtendimento] = useState<
+    EmpresaSemAtendimentoLinha[]
+  >([])
 
   useEffect(() => {
     carregarDashboard()
@@ -166,14 +191,20 @@ export default function DashboardPage() {
         { label: 'Férias', keys: ['Férias', 'Ferias'] },
         { label: 'Atestado', keys: ['Atestado', 'Atestados'] },
         { label: 'Afastado', keys: ['Afastado'] },
-        { label: 'Licença Maternidade', keys: ['Licença Maternidade', 'Licenca Maternidade'] },
-        { label: 'Licença Paternidade', keys: ['Licença Paternidade', 'Licenca Paternidade'] },
+        {
+          label: 'Licença Maternidade',
+          keys: ['Licença Maternidade', 'Licenca Maternidade'],
+        },
+        {
+          label: 'Licença Paternidade',
+          keys: ['Licença Paternidade', 'Licenca Paternidade'],
+        },
         { label: 'Ausente', keys: ['Ausente'] },
       ]
 
-      const resumo: ResumoStatus[] = categorias.map(cat => {
+      const resumo: ResumoStatus[] = categorias.map((cat) => {
         let soma = 0
-        cat.keys.forEach(k => (soma += contagemPorTipo[k] || 0))
+        cat.keys.forEach((k) => (soma += contagemPorTipo[k] || 0))
         return { label: cat.label, valor: soma }
       })
       setResumoStatus(resumo)
@@ -221,11 +252,14 @@ export default function DashboardPage() {
         .lte('data', fim)
 
       const todosErros = [...(errosClinicasData || []), ...(errosSacData || [])]
-      const contadorErrosPorAgente: ErrosAgenteMap = todosErros.reduce((acc: any, item: any) => {
-        const nome = item.agente || 'Não informado'
-        acc[nome] = (acc[nome] || 0) + 1
-        return acc
-      }, {})
+      const contadorErrosPorAgente: ErrosAgenteMap = todosErros.reduce(
+        (acc: any, item: any) => {
+          const nome = item.agente || 'Não informado'
+          acc[nome] = (acc[nome] || 0) + 1
+          return acc
+        },
+        {}
+      )
 
       const top5 = Object.entries(contadorErrosPorAgente)
         .sort((a, b) => b[1] - a[1])
@@ -248,7 +282,54 @@ export default function DashboardPage() {
         .gte('data', inicio)
         .lte('data', fim)
 
-      // 8) Cards
+      // ✅ 8) Empresas que NÃO desejam atendimento no mês
+      // Tabela: operacao_empresas
+      // Colunas esperadas: data, status_operacao ("Sim"/"Não"), responsavel, dias_sem_atendimento (int[])
+      // FK/join: empresa_id -> empresas.id (e select com empresas(nome))
+      const { data: operacaoNaoData, error: eOperacaoNao } = await supabase
+        .from('operacao_empresas')
+        .select(
+          `
+            empresa_id,
+            status_operacao,
+            responsavel,
+            dias_sem_atendimento,
+            empresas ( nome )
+          `
+        )
+        .eq('status_operacao', 'Não')
+        .gte('data', inicio)
+        .lte('data', fim)
+
+      if (eOperacaoNao) throw eOperacaoNao
+
+      // Agrupa por empresa (se tiver múltiplos registros no mês)
+      const mapEmp: Record<string, { diasSet: Set<number>; responsavel?: string | null }> = {}
+
+      ;(operacaoNaoData || []).forEach((r: any) => {
+        const nomeEmpresa: string = r.empresas?.nome ?? '(sem empresa)'
+        const dias: number[] = Array.isArray(r.dias_sem_atendimento) ? r.dias_sem_atendimento : []
+        if (!mapEmp[nomeEmpresa]) {
+          mapEmp[nomeEmpresa] = { diasSet: new Set<number>(), responsavel: r.responsavel ?? null }
+        }
+        dias.forEach((d) => {
+          const n = Number(d)
+          if (!Number.isNaN(n)) mapEmp[nomeEmpresa].diasSet.add(n)
+        })
+        // se vier responsável vazio e já tiver, mantém o primeiro; se quiser, pode sobrescrever.
+      })
+
+      const listaEmpresasNao: EmpresaSemAtendimentoLinha[] = Object.entries(mapEmp)
+        .map(([empresa, obj]) => ({
+          empresa,
+          dias: Array.from(obj.diasSet).sort((a, b) => a - b),
+          responsavel: obj.responsavel ?? null,
+        }))
+        .sort((a, b) => a.empresa.localeCompare(b.empresa, 'pt-BR'))
+
+      setEmpresasSemAtendimento(listaEmpresasNao)
+
+      // 9) Cards
       setStats({
         ferias: ferias || 0,
         atestados: atestados || 0,
@@ -269,11 +350,11 @@ export default function DashboardPage() {
   // ======== GRÁFICO: RESUMO STATUS =========
   const statusBarData = useMemo(
     () => ({
-      labels: resumoStatus.map(r => r.label),
+      labels: resumoStatus.map((r) => r.label),
       datasets: [
         {
           label: 'Quantidade',
-          data: resumoStatus.map(r => r.valor),
+          data: resumoStatus.map((r) => r.valor),
           backgroundColor: '#2687e2',
           borderRadius: 10,
         },
@@ -288,7 +369,11 @@ export default function DashboardPage() {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' }, beginAtZero: true },
+      x: {
+        ticks: { color: '#374151' },
+        grid: { color: '#e5e7eb' },
+        beginAtZero: true,
+      },
       y: { ticks: { color: '#111827' }, grid: { color: '#f3f4f6' } },
     },
   }
@@ -314,16 +399,22 @@ export default function DashboardPage() {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' }, beginAtZero: true },
+      x: {
+        ticks: { color: '#374151' },
+        grid: { color: '#e5e7eb' },
+        beginAtZero: true,
+      },
       y: { ticks: { color: '#111827' }, grid: { color: '#f3f4f6' } },
     },
   }
 
   // ✅ TOP 10 plantões
-  const topPlantoes = useMemo(() => plantoesPorAgente.slice(0, 10), [plantoesPorAgente])
+  const topPlantoes = useMemo(
+    () => plantoesPorAgente.slice(0, 10),
+    [plantoesPorAgente]
+  )
 
   return (
-    // ✅ w-full + min-h-screen + sem max-w travando
     <main className="w-full min-h-screen bg-[#f5f6f7]">
       <div className="w-full px-6 py-6">
         {/* HEADER */}
@@ -333,7 +424,8 @@ export default function DashboardPage() {
               Dashboard Sonax In Home
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Visão do mês de <span className="font-semibold capitalize">{mesLabel}</span>
+              Visão do mês de{' '}
+              <span className="font-semibold capitalize">{mesLabel}</span>
             </p>
           </div>
 
@@ -352,8 +444,16 @@ export default function DashboardPage() {
           <Card titulo="Férias (status atual)" valor={stats.ferias} />
           <Card titulo="Atestados no mês" valor={stats.atestados} />
           <Card titulo="Folgas (status atual)" valor={stats.folgas} />
-          <Card titulo="Erros Clínicas no mês" valor={stats.errosClinicas} corValor="#ef4444" />
-          <Card titulo="Erros SAC no mês" valor={stats.errosSac} corValor="#ef4444" />
+          <Card
+            titulo="Erros Clínicas no mês"
+            valor={stats.errosClinicas}
+            corValor="#ef4444"
+          />
+          <Card
+            titulo="Erros SAC no mês"
+            valor={stats.errosSac}
+            corValor="#ef4444"
+          />
           <Card titulo="Ligações Clínicas no mês" valor={stats.ligacoesClinicas} />
           <Card titulo="Ligações SAC no mês" valor={stats.ligacoesSac} />
           <Card titulo="Total de Agentes" valor={stats.totalAgentes} destaque />
@@ -380,7 +480,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ✅ PLANTÕES NO MÊS (substitui treinamentos) */}
+        {/* ✅ PLANTÕES NO MÊS + (troca "Lista completa" por Empresas sem atendimento) */}
         <section className="mt-6 bg-white border border-gray-200 rounded-2xl shadow p-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="text-lg font-semibold text-gray-900">
@@ -421,35 +521,55 @@ export default function DashboardPage() {
                 </ul>
               </div>
 
-              {/* TABELA COMPLETA */}
+              {/* ✅ SUBSTITUI: Lista completa -> Empresas sem atendimento no mês */}
               <div className="rounded-xl border border-gray-200 p-4">
-                <p className="text-sm font-semibold text-gray-900 mb-3">
-                  Lista completa
-                </p>
-
-                <div className="max-h-[320px] overflow-auto rounded-lg border border-gray-100">
-                  <table className="w-full border-collapse">
-                    <thead className="sticky top-0 bg-white">
-                      <tr className="text-left text-xs text-gray-500">
-                        <th className="border-b p-2">Agente</th>
-                        <th className="border-b p-2 text-right">Plantões</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {plantoesPorAgente.map((p, i) => (
-                        <tr key={p.nome + i} className="text-sm">
-                          <td className="border-b p-2 text-gray-900 font-medium">{p.nome}</td>
-                          <td className="border-b p-2 text-right font-extrabold text-[#00897b]">
-                            {p.qtd}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Empresas sem atendimento do Call Center (mês)
+                  </p>
+                  <span className="text-xs text-gray-500">
+                    {empresasSemAtendimento.length} empresas
+                  </span>
                 </div>
 
+                {empresasSemAtendimento.length === 0 ? (
+                  <p className="text-sm text-gray-600 mt-3">
+                    Nenhuma empresa marcada como <strong>“Não”</strong> no mês atual.
+                  </p>
+                ) : (
+                  <div className="mt-3 max-h-[320px] overflow-auto rounded-lg border border-gray-100">
+                    <table className="w-full border-collapse">
+                      <thead className="sticky top-0 bg-white">
+                        <tr className="text-left text-xs text-gray-500">
+                          <th className="border-b p-2">Empresa</th>
+                          <th className="border-b p-2">Dias sem atendimento</th>
+                          <th className="border-b p-2">Responsável</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {empresasSemAtendimento.map((e, i) => (
+                          <tr key={e.empresa + i} className="text-sm">
+                            <td className="border-b p-2 text-gray-900 font-medium">
+                              {e.empresa}
+                            </td>
+                            <td className="border-b p-2 text-gray-800">
+                              {e.dias.length
+                                ? e.dias.map(formatDia).join(', ')
+                                : '-'}
+                            </td>
+                            <td className="border-b p-2 text-gray-800">
+                              {e.responsavel || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 <p className="text-xs text-gray-500 mt-2">
-                  *Conta registros do tipo <strong>Plantão Final de Semana</strong> dentro do mês atual.
+                  *Lista baseada em <strong>operacao_empresas</strong> com{' '}
+                  <strong>status_operacao = "Não"</strong> dentro do mês atual.
                 </p>
               </div>
             </div>

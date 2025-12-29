@@ -7,34 +7,47 @@ const menuLinks = [
   { href: '/dashboard', label: 'Dashboard' },
 
   { href: '/', label: 'Início' },
+
   {
     href: '/chamada',
     label: 'Chamada',
     sub: [{ href: '/chamada/relatorio', label: 'Relatório de Chamada' }],
   },
-  
+
   {
     href: '/erros',
     label: 'Erros',
     sub: [{ href: '/erros/relatorio', label: 'Relatório de Erros' }],
   },
+
   {
     href: '/advertencias',
     label: 'Advertências',
     sub: [{ href: '/advertencias/relatorio', label: 'Relatório de Advertência' }],
   },
+
   {
     href: '/ligacoes',
     label: 'Ligações Ativas',
     sub: [{ href: '/ligacoes/relatorios', label: 'Relatório de Ligações' }],
   },
+
   { href: '/atestados', label: 'Atestados' },
   { href: '/ausencias', label: 'Ausências' },
+
   {
-  href: '/campanhas',
-  label: 'Campanhas',
-  sub: [{ href: '/campanhas/relatorio', label: 'Relatório de Campanhas' }],
-},
+    href: '/campanhas',
+    label: 'Campanhas',
+    sub: [{ href: '/campanhas/relatorio', label: 'Relatório de Campanhas' }],
+  },
+
+  // 🔥 URA (NOVO)
+  {
+    href: '/ura',
+    label: 'URA',
+    sub: [{ href: '/ura/relatorio', label: 'Relatório de Operação' }],
+  },
+
   { href: '/login?logout=1', label: 'Sair', color: 'gray' },
 ]
 
@@ -58,21 +71,27 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
       {!esconderMenu && (
         <aside className="w-64 bg-[#2687e2] text-white flex flex-col p-4 space-y-2 shadow-lg">
           <h2 className="text-xl font-bold mb-4">Sonax Painel</h2>
+
           {menuLinks.map(link => (
             <div key={link.href} className="relative">
               <div className="flex items-center justify-between">
                 <a
                   href={link.href}
                   className={`block w-full px-3 py-2 rounded-md text-sm font-medium hover:bg-[#1f6bb6] ${
-                    link.color === 'gray' ? 'bg-gray-500 hover:bg-gray-600' : ''
+                    link.color === 'gray'
+                      ? 'bg-gray-500 hover:bg-gray-600'
+                      : ''
                   }`}
                 >
                   {link.label}
                 </a>
+
                 {link.sub && (
                   <button
                     onClick={() =>
-                      setOpenDropdown(openDropdown === link.label ? null : link.label)
+                      setOpenDropdown(
+                        openDropdown === link.label ? null : link.label
+                      )
                     }
                     className="text-white text-xs px-2"
                   >
@@ -87,7 +106,11 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
                     <a
                       key={sub.href}
                       href={sub.href}
-                      className="block px-3 py-1 rounded-md text-sm bg-[#1f6bb6] hover:bg-[#145a9c]"
+                      className={`block px-3 py-1 rounded-md text-sm ${
+                        pathname.startsWith(sub.href)
+                          ? 'bg-[#145a9c]'
+                          : 'bg-[#1f6bb6] hover:bg-[#145a9c]'
+                      }`}
                     >
                       {sub.label}
                     </a>
@@ -98,6 +121,7 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
           ))}
         </aside>
       )}
+
       <main className="flex-1 p-6 overflow-auto">{children}</main>
     </div>
   )

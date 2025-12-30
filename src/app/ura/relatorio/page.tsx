@@ -9,12 +9,15 @@ type Empresa = {
 }
 
 type Linha = {
-  id: string
+  id: number
   data: string
-  status_operacao: 'Sim' | 'Não'
-  dias_sem_atendimento: number[] | null
-  responsavel: string
+  empresa_id: string
+  status_operacao: string
+  quem_adicionou: string | null
+  responsavel_ura: string | null
   observacao: string | null
+  feriado: string | null
+  created_at?: string | null
   empresa: { nome: string } | null
 }
 
@@ -26,6 +29,9 @@ export default function OperacaoEmpresaRelatorioPage() {
     dataFim: hoje,
     empresaId: 'todas',
     status: 'todos',
+    feriado: '',
+    quemAdicionou: '',
+    responsavelUra: '',
   })
 
   const [empresas, setEmpresas] = useState<Empresa[]>([])
@@ -34,8 +40,11 @@ export default function OperacaoEmpresaRelatorioPage() {
 
   const resumo = useMemo(() => {
     const total = linhas.length
-    const sim = linhas.filter((l) => l.status_operacao === 'Sim').length
-    const nao = linhas.filter((l) => l.status_operacao === 'Não').length
+    const sim = linhas.filter((l) => String(l.status_operacao).toLowerCase() === 'sim').length
+    const nao = linhas.filter((l) => {
+      const v = String(l.status_operacao).toLowerCase()
+      return v === 'não' || v === 'nao'
+    }).length
     return { total, sim, nao }
   }, [linhas])
 
@@ -52,7 +61,7 @@ export default function OperacaoEmpresaRelatorioPage() {
         return
       }
 
-      setEmpresas(data || [])
+      setEmpresas(((data as any) || []) as Empresa[])
     }
 
     carregarEmpresas()
@@ -64,15 +73,20 @@ export default function OperacaoEmpresaRelatorioPage() {
 
       let q = supabase
         .from('operacao_empresas')
-        .select(`
+        .select(
+          `
           id,
           data,
+          empresa_id,
           status_operacao,
-          dias_sem_atendimento,
-          responsavel,
+          quem_adicionou,
+          responsavel_ura,
           observacao,
+          feriado,
+          created_at,
           empresa:empresas ( nome )
-        `)
+        `,
+        )
         .gte('data', filtros.dataInicio)
         .lte('data', filtros.dataFim)
         .order('data', { ascending: false })
@@ -80,10 +94,16 @@ export default function OperacaoEmpresaRelatorioPage() {
       if (filtros.empresaId !== 'todas') q = q.eq('empresa_id', filtros.empresaId)
       if (filtros.status !== 'todos') q = q.eq('status_operacao', filtros.status)
 
+      if (filtros.feriado.trim()) q = q.ilike('feriado', `%${filtros.feriado.trim()}%`)
+      if (filtros.quemAdicionou.trim())
+        q = q.ilike('quem_adicionou', `%${filtros.quemAdicionou.trim()}%`)
+      if (filtros.responsavelUra.trim())
+        q = q.ilike('responsavel_ura', `%${filtros.responsavelUra.trim()}%`)
+
       const { data, error } = await q
       if (error) throw error
 
-      setLinhas((data as any) || [])
+      setLinhas(((data as any) || []) as Linha[])
     } catch (err: any) {
       console.error(err)
       alert('Erro ao buscar relatório: ' + (err?.message || 'Erro desconhecido'))
@@ -92,33 +112,36 @@ export default function OperacaoEmpresaRelatorioPage() {
     }
   }
 
-  function formatDias(dias: number[] | null) {
-    if (!dias || dias.length === 0) return '-'
-    return dias
-      .slice()
-      .sort((a, b) => a - b)
-      .map((d) => String(d).padStart(2, '0'))
-      .join(', ')
-  }
-
   function exportarCSV() {
     if (!linhas.length) {
       alert('Não há dados para exportar.')
       return
     }
 
-    const headers = ['Data', 'Empresa', 'Status', 'Dias sem atendimento', 'Responsável', 'Observação']
+    const headers = [
+      'Data',
+      'Empresa',
+      'Feriado',
+      'Call Center vai atender?',
+      'Quem adicionou',
+      'Responsável pela URA',
+      'Observação',
+      'Criado em',
+    ]
+
     const linhasCSV = linhas.map((l) =>
       [
         l.data,
         l.empresa?.nome || '',
-        l.status_operacao,
-        formatDias(l.dias_sem_atendimento),
-        l.responsavel,
+        l.feriado || '',
+        l.status_operacao || '',
+        l.quem_adicionou || '',
+        l.responsavel_ura || '',
         l.observacao || '',
+        l.created_at || '',
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(';')
+        .join(';'),
     )
 
     const conteudo = '\uFEFF' + [headers.join(';'), ...linhasCSV].join('\r\n')
@@ -137,15 +160,11 @@ export default function OperacaoEmpresaRelatorioPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Card filtros */}
         <div className="rounded-xl bg-white p-6 shadow space-y-4">
-          <h1 className="text-lg font-bold text-gray-800">
-            Relatório — Operação por Empresa
-          </h1>
+          <h1 className="text-lg font-bold text-gray-800">Relatório — Operação por Empresa</h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
-              <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                Data inicial
-              </label>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Data inicial</label>
               <input
                 type="date"
                 className="w-full rounded-lg border p-2 text-gray-800"
@@ -155,9 +174,7 @@ export default function OperacaoEmpresaRelatorioPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                Data final
-              </label>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Data final</label>
               <input
                 type="date"
                 className="w-full rounded-lg border p-2 text-gray-800"
@@ -167,9 +184,7 @@ export default function OperacaoEmpresaRelatorioPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                Empresa
-              </label>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Empresa</label>
               <select
                 className="w-full rounded-lg border p-2 text-gray-800 bg-white"
                 value={filtros.empresaId}
@@ -185,9 +200,7 @@ export default function OperacaoEmpresaRelatorioPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
-                Status da operação
-              </label>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Status</label>
               <select
                 className="w-full rounded-lg border p-2 text-gray-800 bg-white"
                 value={filtros.status}
@@ -198,27 +211,61 @@ export default function OperacaoEmpresaRelatorioPage() {
                 <option value="Não">Não</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Feriado</label>
+              <input
+                className="w-full rounded-lg border p-2 text-gray-800"
+                placeholder="Ex.: Natal"
+                value={filtros.feriado}
+                onChange={(e) => setFiltros({ ...filtros, feriado: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Quem adicionou</label>
+              <input
+                className="w-full rounded-lg border p-2 text-gray-800"
+                placeholder="Ex.: Marco"
+                value={filtros.quemAdicionou}
+                onChange={(e) => setFiltros({ ...filtros, quemAdicionou: e.target.value })}
+              />
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={buscar}
-              disabled={carregando}
-              className="rounded-lg bg-[#2687e2] px-5 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
-            >
-              {carregando ? 'Buscando…' : 'Buscar'}
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#2687e2]">Responsável URA</label>
+              <input
+                className="w-full rounded-lg border p-2 text-gray-800"
+                placeholder="Ex.: Fulano"
+                value={filtros.responsavelUra}
+                onChange={(e) => setFiltros({ ...filtros, responsavelUra: e.target.value })}
+              />
+            </div>
 
-            <button
-              onClick={exportarCSV}
-              disabled={linhas.length === 0}
-              className="rounded-lg bg-gray-800 px-5 py-2 font-semibold text-white hover:bg-gray-900 disabled:opacity-50"
-            >
-              Exportar CSV
-            </button>
+            <div className="flex items-end gap-3">
+              <button
+                onClick={buscar}
+                disabled={carregando}
+                className="rounded-lg bg-[#2687e2] px-5 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
+                {carregando ? 'Buscando…' : 'Buscar'}
+              </button>
 
-            <div className="text-sm font-semibold text-gray-800">
-              Total: {resumo.total} &nbsp;&nbsp; Sim: {resumo.sim} &nbsp;&nbsp; Não: {resumo.nao}
+              <button
+                onClick={exportarCSV}
+                disabled={linhas.length === 0}
+                className="rounded-lg bg-gray-800 px-5 py-2 font-semibold text-white hover:bg-gray-900 disabled:opacity-50"
+              >
+                Exportar CSV
+              </button>
+            </div>
+
+            <div className="flex items-end">
+              <div className="text-sm font-semibold text-gray-800">
+                Total: {resumo.total} &nbsp;&nbsp; Sim: {resumo.sim} &nbsp;&nbsp; Não: {resumo.nao}
+              </div>
             </div>
           </div>
         </div>
@@ -231,18 +278,18 @@ export default function OperacaoEmpresaRelatorioPage() {
                 <tr className="border-b bg-gray-50">
                   <th className="text-left p-3 font-bold text-gray-900">Data</th>
                   <th className="text-left p-3 font-bold text-gray-900">Empresa</th>
-                  <th className="text-left p-3 font-bold text-gray-900">Status</th>
-                  <th className="text-left p-3 font-bold text-gray-900">Dias sem atendimento</th>
-                  <th className="text-left p-3 font-bold text-gray-900">Responsável</th>
+                  <th className="text-left p-3 font-bold text-gray-900">Feriado</th>
+                  <th className="text-left p-3 font-bold text-gray-900">Call Center vai atender?</th>
+                  <th className="text-left p-3 font-bold text-gray-900">Quem adicionou</th>
+                  <th className="text-left p-3 font-bold text-gray-900">Responsável URA</th>
                   <th className="text-left p-3 font-bold text-gray-900">Observação</th>
                 </tr>
               </thead>
 
-              <tbody className="text-gray-800"></tbody>
-               <tbody className="text-gray-800">
+              <tbody className="text-gray-800">
                 {linhas.length === 0 ? (
                   <tr>
-                    <td className="p-3 text-gray-700" colSpan={6}>
+                    <td className="p-3 text-gray-700" colSpan={7}>
                       Nenhum registro encontrado para os filtros selecionados.
                     </td>
                   </tr>
@@ -250,12 +297,13 @@ export default function OperacaoEmpresaRelatorioPage() {
                   linhas.map((l) => (
                     <tr key={l.id} className="border-b hover:bg-gray-50">
                       <td className="p-3 font-medium text-gray-900">{l.data}</td>
-                      <td className="p-3 text-gray-800">{l.empresa?.nome || '-'}</td>
+                      <td className="p-3">{l.empresa?.nome || '-'}</td>
+                      <td className="p-3">{l.feriado || '-'}</td>
                       <td className="p-3">
                         <span
                           className={[
                             'px-2 py-1 rounded-full text-xs font-bold',
-                            l.status_operacao === 'Sim'
+                            String(l.status_operacao).toLowerCase() === 'sim'
                               ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800',
                           ].join(' ')}
@@ -263,9 +311,9 @@ export default function OperacaoEmpresaRelatorioPage() {
                           {l.status_operacao}
                         </span>
                       </td>
-                      <td className="p-3 text-gray-800">{formatDias(l.dias_sem_atendimento)}</td>
-                      <td className="p-3 text-gray-800">{l.responsavel}</td>
-                      <td className="p-3 text-gray-800">{l.observacao || '-'}</td>
+                      <td className="p-3">{l.quem_adicionou || '-'}</td>
+                      <td className="p-3">{l.responsavel_ura || '-'}</td>
+                      <td className="p-3">{l.observacao || '-'}</td>
                     </tr>
                   ))
                 )}

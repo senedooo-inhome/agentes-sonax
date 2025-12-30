@@ -69,10 +69,12 @@ type PlantaoLinha = {
   qtd: number
 }
 
-type EmpresaSemAtendimentoLinha = {
-  empresa: string
-  dias: number[]
-  responsavel?: string | null
+// ✅ Data local (Brasil) -> "YYYY-MM-DD"
+function toISODateLocal(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 function getMesAtualInfo() {
@@ -82,7 +84,6 @@ function getMesAtualInfo() {
   const primeiroDia = new Date(ano, mesIndex, 1)
   const ultimoDia = new Date(ano, mesIndex + 1, 0)
 
-  const toISODate = (d: Date) => d.toISOString().split('T')[0]
   const meses = [
     'janeiro',
     'fevereiro',
@@ -102,13 +103,9 @@ function getMesAtualInfo() {
     ano,
     mesIndex,
     label: `${meses[mesIndex]} de ${ano}`,
-    inicio: toISODate(primeiroDia),
-    fim: toISODate(ultimoDia),
+    inicio: toISODateLocal(primeiroDia),
+    fim: toISODateLocal(ultimoDia),
   }
-}
-
-function formatDia(d: number) {
-  return String(d).padStart(2, '0')
 }
 
 export default function DashboardPage() {
@@ -131,10 +128,8 @@ export default function DashboardPage() {
   // ✅ PLANTÕES (mês)
   const [plantoesPorAgente, setPlantoesPorAgente] = useState<PlantaoLinha[]>([])
 
-  // ✅ NOVO: Empresas que NÃO desejam atendimento no mês (status_operacao = "Não")
-  const [empresasSemAtendimento, setEmpresasSemAtendimento] = useState<
-    EmpresaSemAtendimentoLinha[]
-  >([])
+  // ✅ NOVO: NOMES dos agentes em férias
+  const [agentesFerias, setAgentesFerias] = useState<string[]>([])
 
   useEffect(() => {
     carregarDashboard()
@@ -152,16 +147,21 @@ export default function DashboardPage() {
         .from('agentes')
         .select('*', { count: 'exact', head: true })
 
-      // 2) Férias / Folgas (status atual)
-      const { count: ferias } = await supabase
-        .from('agentes')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Férias')
+      // 2) Férias / Folgas (status atual) + nomes
+      const [{ count: ferias }, { count: folgas }] = await Promise.all([
+        supabase.from('agentes').select('*', { count: 'exact', head: true }).eq('status', 'Férias'),
+        supabase.from('agentes').select('*', { count: 'exact', head: true }).eq('status', 'Folga'),
+      ])
 
-      const { count: folgas } = await supabase
+      // ✅ nomes em férias
+      const { data: feriasNomesData, error: feriasNomesErr } = await supabase
         .from('agentes')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Folga')
+        .select('nome')
+        .eq('status', 'Férias')
+        .order('nome', { ascending: true })
+
+      if (feriasNomesErr) throw feriasNomesErr
+      setAgentesFerias((feriasNomesData || []).map((x: any) => x.nome).filter(Boolean))
 
       // 3) Atestados do mês
       const { count: atestados } = await supabase
@@ -191,14 +191,8 @@ export default function DashboardPage() {
         { label: 'Férias', keys: ['Férias', 'Ferias'] },
         { label: 'Atestado', keys: ['Atestado', 'Atestados'] },
         { label: 'Afastado', keys: ['Afastado'] },
-        {
-          label: 'Licença Maternidade',
-          keys: ['Licença Maternidade', 'Licenca Maternidade'],
-        },
-        {
-          label: 'Licença Paternidade',
-          keys: ['Licença Paternidade', 'Licenca Paternidade'],
-        },
+        { label: 'Licença Maternidade', keys: ['Licença Maternidade', 'Licenca Maternidade'] },
+        { label: 'Licença Paternidade', keys: ['Licença Paternidade', 'Licenca Paternidade'] },
         { label: 'Ausente', keys: ['Ausente'] },
       ]
 
@@ -212,12 +206,7 @@ export default function DashboardPage() {
       // ✅ 5) Plantões do mês por agente (join com agentes)
       const { data: plantoesData, error: ePlantao } = await supabase
         .from('presencas')
-        .select(
-          `
-            tipo,
-            agentes ( nome )
-          `
-        )
+        .select(`tipo, agentes ( nome )`)
         .eq('tipo', 'Plantão Final de Semana')
         .gte('data_registro', inicio)
         .lte('data_registro', fim)
@@ -252,14 +241,11 @@ export default function DashboardPage() {
         .lte('data', fim)
 
       const todosErros = [...(errosClinicasData || []), ...(errosSacData || [])]
-      const contadorErrosPorAgente: ErrosAgenteMap = todosErros.reduce(
-        (acc: any, item: any) => {
-          const nome = item.agente || 'Não informado'
-          acc[nome] = (acc[nome] || 0) + 1
-          return acc
-        },
-        {}
-      )
+      const contadorErrosPorAgente: ErrosAgenteMap = todosErros.reduce((acc: any, item: any) => {
+        const nome = item.agente || 'Não informado'
+        acc[nome] = (acc[nome] || 0) + 1
+        return acc
+      }, {})
 
       const top5 = Object.entries(contadorErrosPorAgente)
         .sort((a, b) => b[1] - a[1])
@@ -282,54 +268,7 @@ export default function DashboardPage() {
         .gte('data', inicio)
         .lte('data', fim)
 
-      // ✅ 8) Empresas que NÃO desejam atendimento no mês
-      // Tabela: operacao_empresas
-      // Colunas esperadas: data, status_operacao ("Sim"/"Não"), responsavel, dias_sem_atendimento (int[])
-      // FK/join: empresa_id -> empresas.id (e select com empresas(nome))
-      const { data: operacaoNaoData, error: eOperacaoNao } = await supabase
-        .from('operacao_empresas')
-        .select(
-          `
-            empresa_id,
-            status_operacao,
-            responsavel,
-            dias_sem_atendimento,
-            empresas ( nome )
-          `
-        )
-        .eq('status_operacao', 'Não')
-        .gte('data', inicio)
-        .lte('data', fim)
-
-      if (eOperacaoNao) throw eOperacaoNao
-
-      // Agrupa por empresa (se tiver múltiplos registros no mês)
-      const mapEmp: Record<string, { diasSet: Set<number>; responsavel?: string | null }> = {}
-
-      ;(operacaoNaoData || []).forEach((r: any) => {
-        const nomeEmpresa: string = r.empresas?.nome ?? '(sem empresa)'
-        const dias: number[] = Array.isArray(r.dias_sem_atendimento) ? r.dias_sem_atendimento : []
-        if (!mapEmp[nomeEmpresa]) {
-          mapEmp[nomeEmpresa] = { diasSet: new Set<number>(), responsavel: r.responsavel ?? null }
-        }
-        dias.forEach((d) => {
-          const n = Number(d)
-          if (!Number.isNaN(n)) mapEmp[nomeEmpresa].diasSet.add(n)
-        })
-        // se vier responsável vazio e já tiver, mantém o primeiro; se quiser, pode sobrescrever.
-      })
-
-      const listaEmpresasNao: EmpresaSemAtendimentoLinha[] = Object.entries(mapEmp)
-        .map(([empresa, obj]) => ({
-          empresa,
-          dias: Array.from(obj.diasSet).sort((a, b) => a - b),
-          responsavel: obj.responsavel ?? null,
-        }))
-        .sort((a, b) => a.empresa.localeCompare(b.empresa, 'pt-BR'))
-
-      setEmpresasSemAtendimento(listaEmpresasNao)
-
-      // 9) Cards
+      // 8) Cards
       setStats({
         ferias: ferias || 0,
         atestados: atestados || 0,
@@ -369,11 +308,7 @@ export default function DashboardPage() {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: {
-        ticks: { color: '#374151' },
-        grid: { color: '#e5e7eb' },
-        beginAtZero: true,
-      },
+      x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' }, beginAtZero: true },
       y: { ticks: { color: '#111827' }, grid: { color: '#f3f4f6' } },
     },
   }
@@ -399,20 +334,13 @@ export default function DashboardPage() {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
     scales: {
-      x: {
-        ticks: { color: '#374151' },
-        grid: { color: '#e5e7eb' },
-        beginAtZero: true,
-      },
+      x: { ticks: { color: '#374151' }, grid: { color: '#e5e7eb' }, beginAtZero: true },
       y: { ticks: { color: '#111827' }, grid: { color: '#f3f4f6' } },
     },
   }
 
   // ✅ TOP 10 plantões
-  const topPlantoes = useMemo(
-    () => plantoesPorAgente.slice(0, 10),
-    [plantoesPorAgente]
-  )
+  const topPlantoes = useMemo(() => plantoesPorAgente.slice(0, 10), [plantoesPorAgente])
 
   return (
     <main className="w-full min-h-screen bg-[#f5f6f7]">
@@ -424,8 +352,7 @@ export default function DashboardPage() {
               Dashboard Sonax In Home
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Visão do mês de{' '}
-              <span className="font-semibold capitalize">{mesLabel}</span>
+              Visão do mês de <span className="font-semibold capitalize">{mesLabel}</span>
             </p>
           </div>
 
@@ -444,16 +371,8 @@ export default function DashboardPage() {
           <Card titulo="Férias (status atual)" valor={stats.ferias} />
           <Card titulo="Atestados no mês" valor={stats.atestados} />
           <Card titulo="Folgas (status atual)" valor={stats.folgas} />
-          <Card
-            titulo="Erros Clínicas no mês"
-            valor={stats.errosClinicas}
-            corValor="#ef4444"
-          />
-          <Card
-            titulo="Erros SAC no mês"
-            valor={stats.errosSac}
-            corValor="#ef4444"
-          />
+          <Card titulo="Erros Clínicas no mês" valor={stats.errosClinicas} corValor="#ef4444" />
+          <Card titulo="Erros SAC no mês" valor={stats.errosSac} corValor="#ef4444" />
           <Card titulo="Ligações Clínicas no mês" valor={stats.ligacoesClinicas} />
           <Card titulo="Ligações SAC no mês" valor={stats.ligacoesSac} />
           <Card titulo="Total de Agentes" valor={stats.totalAgentes} destaque />
@@ -462,9 +381,7 @@ export default function DashboardPage() {
         {/* GRÁFICOS */}
         <section className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="bg-white border border-gray-200 rounded-2xl shadow p-6 h-[360px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Status dos Agentes (Mês Atual)
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Status dos Agentes (Mês Atual)</h2>
             <div className="h-[280px]">
               <Bar data={statusBarData} options={statusBarOptions} />
             </div>
@@ -480,12 +397,10 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ✅ PLANTÕES NO MÊS + (troca "Lista completa" por Empresas sem atendimento) */}
+        {/* ✅ PLANTÕES NO MÊS + NOMES EM FÉRIAS */}
         <section className="mt-6 bg-white border border-gray-200 rounded-2xl shadow p-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Plantões no mês (por agente)
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900">Plantões no mês (por agente)</h2>
 
             <span className="text-xs text-gray-500">
               {plantoesPorAgente.length} agentes com plantão registrado
@@ -500,9 +415,7 @@ export default function DashboardPage() {
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* TOP 10 */}
               <div className="rounded-xl border border-gray-200 p-4">
-                <p className="text-sm font-semibold text-gray-900 mb-3">
-                  Top 10 (mais plantões)
-                </p>
+                <p className="text-sm font-semibold text-gray-900 mb-3">Top 10 (mais plantões)</p>
 
                 <ul className="space-y-2">
                   {topPlantoes.map((p, idx) => (
@@ -513,63 +426,35 @@ export default function DashboardPage() {
                       <span className="text-sm font-medium text-gray-900">
                         {idx + 1}. {p.nome}
                       </span>
-                      <span className="text-sm font-extrabold text-[#00897b]">
-                        {p.qtd}
-                      </span>
+                      <span className="text-sm font-extrabold text-[#00897b]">{p.qtd}</span>
                     </li>
                   ))}
                 </ul>
               </div>
 
-              {/* ✅ SUBSTITUI: Lista completa -> Empresas sem atendimento no mês */}
+              {/* ✅ NOVO BLOCO: NOMES DOS AGENTES EM FÉRIAS */}
               <div className="rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <p className="text-sm font-semibold text-gray-900">
-                    Empresas sem atendimento do Call Center (mês)
-                  </p>
-                  <span className="text-xs text-gray-500">
-                    {empresasSemAtendimento.length} empresas
-                  </span>
+                  <p className="text-sm font-semibold text-gray-900">Nomes dos agentes em férias</p>
+                  <span className="text-xs text-gray-500">{agentesFerias.length} agentes</span>
                 </div>
 
-                {empresasSemAtendimento.length === 0 ? (
-                  <p className="text-sm text-gray-600 mt-3">
-                    Nenhuma empresa marcada como <strong>“Não”</strong> no mês atual.
-                  </p>
+                {agentesFerias.length === 0 ? (
+                  <p className="text-sm text-gray-600 mt-3">Nenhum agente está com status <strong>Férias</strong>.</p>
                 ) : (
                   <div className="mt-3 max-h-[320px] overflow-auto rounded-lg border border-gray-100">
-                    <table className="w-full border-collapse">
-                      <thead className="sticky top-0 bg-white">
-                        <tr className="text-left text-xs text-gray-500">
-                          <th className="border-b p-2">Empresa</th>
-                          <th className="border-b p-2">Dias sem atendimento</th>
-                          <th className="border-b p-2">Responsável</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {empresasSemAtendimento.map((e, i) => (
-                          <tr key={e.empresa + i} className="text-sm">
-                            <td className="border-b p-2 text-gray-900 font-medium">
-                              {e.empresa}
-                            </td>
-                            <td className="border-b p-2 text-gray-800">
-                              {e.dias.length
-                                ? e.dias.map(formatDia).join(', ')
-                                : '-'}
-                            </td>
-                            <td className="border-b p-2 text-gray-800">
-                              {e.responsavel || '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <ul className="divide-y">
+                      {agentesFerias.map((nome, i) => (
+                        <li key={nome + i} className="p-3 text-sm text-gray-900 font-medium">
+                          {nome}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
                 <p className="text-xs text-gray-500 mt-2">
-                  *Lista baseada em <strong>operacao_empresas</strong> com{' '}
-                  <strong>status_operacao = "Não"</strong> dentro do mês atual.
+                  *Lista baseada em <strong>agentes.status = "Férias"</strong>.
                 </p>
               </div>
             </div>

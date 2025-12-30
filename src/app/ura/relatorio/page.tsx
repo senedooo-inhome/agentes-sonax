@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import * as XLSX from 'xlsx'
 
 type Empresa = {
   id: string
@@ -23,10 +22,10 @@ export default function OperacaoEmpresaRelatorioPage() {
   const hoje = new Date().toISOString().slice(0, 10)
 
   const [filtros, setFiltros] = useState({
-    dataInicio: hoje.slice(0, 8) + '01', // 1º dia do mês
+    dataInicio: hoje.slice(0, 8) + '01',
     dataFim: hoje,
     empresaId: 'todas',
-    status: 'todos', // 'todos' | 'Sim' | 'Não'
+    status: 'todos',
   })
 
   const [empresas, setEmpresas] = useState<Empresa[]>([])
@@ -63,12 +62,9 @@ export default function OperacaoEmpresaRelatorioPage() {
     try {
       setCarregando(true)
 
-      // IMPORTANTE: confirme que sua tabela é "operacao_empresas"
-      // e que existe relacionamento com empresas via FK (empresa_id)
       let q = supabase
         .from('operacao_empresas')
-        .select(
-          `
+        .select(`
           id,
           data,
           status_operacao,
@@ -76,8 +72,7 @@ export default function OperacaoEmpresaRelatorioPage() {
           responsavel,
           observacao,
           empresa:empresas ( nome )
-        `
-        )
+        `)
         .gte('data', filtros.dataInicio)
         .lte('data', filtros.dataFim)
         .order('data', { ascending: false })
@@ -106,22 +101,35 @@ export default function OperacaoEmpresaRelatorioPage() {
       .join(', ')
   }
 
-  function exportarExcel() {
-    const rows = linhas.map((l) => ({
-      Data: l.data,
-      Empresa: l.empresa?.nome || '',
-      Status: l.status_operacao,
-      'Dias sem atendimento': formatDias(l.dias_sem_atendimento),
-      Responsável: l.responsavel,
-      Observação: l.observacao || '',
-    }))
+  function exportarCSV() {
+    if (!linhas.length) {
+      alert('Não há dados para exportar.')
+      return
+    }
 
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Relatório')
+    const headers = ['Data', 'Empresa', 'Status', 'Dias sem atendimento', 'Responsável', 'Observação']
+    const linhasCSV = linhas.map((l) =>
+      [
+        l.data,
+        l.empresa?.nome || '',
+        l.status_operacao,
+        formatDias(l.dias_sem_atendimento),
+        l.responsavel,
+        l.observacao || '',
+      ]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(';')
+    )
 
-    const nomeArquivo = `relatorio_operacao_${filtros.dataInicio}_a_${filtros.dataFim}.xlsx`
-    XLSX.writeFile(wb, nomeArquivo)
+    const conteudo = '\uFEFF' + [headers.join(';'), ...linhasCSV].join('\r\n')
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `relatorio_operacao_${filtros.dataInicio}_a_${filtros.dataFim}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -202,11 +210,11 @@ export default function OperacaoEmpresaRelatorioPage() {
             </button>
 
             <button
-              onClick={exportarExcel}
+              onClick={exportarCSV}
               disabled={linhas.length === 0}
               className="rounded-lg bg-gray-800 px-5 py-2 font-semibold text-white hover:bg-gray-900 disabled:opacity-50"
             >
-              Exportar Excel
+              Exportar CSV
             </button>
 
             <div className="text-sm font-semibold text-gray-800">
@@ -230,7 +238,8 @@ export default function OperacaoEmpresaRelatorioPage() {
                 </tr>
               </thead>
 
-              <tbody className="text-gray-800">
+              <tbody className="text-gray-800"></tbody>
+               <tbody className="text-gray-800">
                 {linhas.length === 0 ? (
                   <tr>
                     <td className="p-3 text-gray-700" colSpan={6}>

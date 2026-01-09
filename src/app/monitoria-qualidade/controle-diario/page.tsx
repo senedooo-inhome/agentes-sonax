@@ -18,19 +18,20 @@ type Marcacao = {
 function yyyyMm(d: Date) {
   return d.toISOString().slice(0, 7)
 }
-function dd(d: Date) {
-  return Number(d.toISOString().slice(8, 10))
+
+function diasDoMes(yyyyMm: string) {
+  const [y, m] = yyyyMm.split('-').map(Number)
+  const total = new Date(y, m, 0).getDate()
+  return Array.from({ length: total }, (_, i) => i + 1)
 }
-function yyyymmdd(d: Date) {
-  return d.toISOString().slice(0, 10)
-}
-function formatPtBrLong(d: Date) {
-  // ex: 05 de janeiro de 2026
-  return d.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
+
+function nomeMesTopo(yyyyMm: string) {
+  const [y, m] = yyyyMm.split('-').map(Number)
+  const d = new Date(y, m - 1, 1)
+  // ex: Janeiro 2026
+  const mesNome = d.toLocaleDateString('pt-BR', { month: 'long' })
+  const mesCapitalizado = mesNome.charAt(0).toUpperCase() + mesNome.slice(1)
+  return `${mesCapitalizado} de ${y}`
 }
 
 export default function ControleDiarioMonitoriaPage() {
@@ -50,144 +51,149 @@ export default function ControleDiarioMonitoriaPage() {
     })()
   }, [router])
 
-  // Data do dia (pode evoluir depois para selecionar qualquer data)
-  const [dataDia, setDataDia] = useState(() => new Date())
+  // ✅ sempre mês atual (vira automaticamente quando muda o mês)
+  const [mes, setMes] = useState(() => yyyyMm(new Date()))
 
-  const mes = useMemo(() => yyyyMm(dataDia), [dataDia])
-  const dia = useMemo(() => dd(dataDia), [dataDia])
+  // Atualiza o mês automaticamente quando “virar o mês”
+  // (não precisa apagar nada, só muda o filtro)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date()
+      const mm = yyyyMm(now)
+      setMes((prev) => (prev === mm ? prev : mm))
+    }, 30_000) // checa a cada 30s
+
+    return () => clearInterval(timer)
+  }, [])
+
+  const dias = useMemo(() => diasDoMes(mes), [mes])
 
   const [agentes, setAgentes] = useState<Agente[]>([])
-  const [marcadosHoje, setMarcadosHoje] = useState<Marcacao[]>([])
-  const [carregando, setCarregando] = useState(false)
-  const [salvandoNome, setSalvandoNome] = useState<string | null>(null)
+  const [carregandoAgentes, setCarregandoAgentes] = useState(false)
 
-  // Busca / filtro visual
-  const [buscaNao, setBuscaNao] = useState('')
-  const [buscaSim, setBuscaSim] = useState('')
+  const [marcacoes, setMarcacoes] = useState<Marcacao[]>([])
+  const [carregandoMarcacoes, setCarregandoMarcacoes] = useState(false)
 
-  async function carregarTudo() {
+  // grid: chave "agente__dia" => boolean
+  const key = (agente: string, dia: number) => `${agente}__${dia}`
+  const [grid, setGrid] = useState<Record<string, boolean>>({})
+  const [salvandoKey, setSalvandoKey] = useState<string | null>(null)
+
+  async function carregarAgentes() {
     try {
-      setCarregando(true)
+      setCarregandoAgentes(true)
+      const { data, error } = await supabase
+        .from('agentes')
+        .select('id, nome')
+        .order('nome', { ascending: true })
 
-      const [agRes, mkRes] = await Promise.all([
-        supabase.from('agentes').select('id, nome').order('nome', { ascending: true }),
-        supabase
-          .from('monitoria_agente_dias')
-          .select('id, mes, dia, agente, avaliado, marcado_por, updated_at')
-          .eq('mes', mes)
-          .eq('dia', dia)
-          .eq('avaliado', true)
-          .order('updated_at', { ascending: false }),
-      ])
-
-      if (agRes.error) throw agRes.error
-      if (mkRes.error) throw mkRes.error
-
-      setAgentes(((agRes.data as any) || []) as Agente[])
-      setMarcadosHoje(((mkRes.data as any) || []) as Marcacao[])
+      if (error) throw error
+      setAgentes(((data as any) || []) as Agente[])
     } catch (err: any) {
       console.error(err)
-      alert('Erro ao carregar: ' + (err?.message || 'Erro desconhecido'))
+      alert('Erro ao carregar agentes: ' + (err?.message || 'Erro desconhecido'))
     } finally {
-      setCarregando(false)
+      setCarregandoAgentes(false)
+    }
+  }
+
+  async function carregarMarcacoesDoMes() {
+    try {
+      setCarregandoMarcacoes(true)
+
+      const { data, error } = await supabase
+        .from('monitoria_agente_dias')
+        .select('id, mes, dia, agente, avaliado, marcado_por, updated_at')
+        .eq('mes', mes)
+        .eq('avaliado', true)
+
+      if (error) throw error
+
+      const rows = (((data as any) || []) as Marcacao[]) || []
+      setMarcacoes(rows)
+
+      const next: Record<string, boolean> = {}
+      for (const r of rows) {
+        next[key(r.agente, r.dia)] = true
+      }
+      setGrid(next)
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao carregar marcações: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setCarregandoMarcacoes(false)
     }
   }
 
   useEffect(() => {
-    if (!checkingAuth) carregarTudo()
+    if (!checkingAuth) {
+      carregarAgentes()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkingAuth, mes, dia])
+  }, [checkingAuth])
 
-  const setMarcados = useMemo(() => {
-    const s = new Set<string>()
-    for (const r of marcadosHoje) s.add(r.agente)
-    return s
-  }, [marcadosHoje])
+  useEffect(() => {
+    if (!checkingAuth) {
+      carregarMarcacoesDoMes()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mes, checkingAuth])
 
-  const naoAvaliados = useMemo(() => {
-    const list = agentes.filter((a) => !setMarcados.has(a.nome))
-    const q = buscaNao.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((a) => a.nome.toLowerCase().includes(q))
-  }, [agentes, setMarcados, buscaNao])
+  async function toggle(agenteNome: string, dia: number) {
+    const k = key(agenteNome, dia)
+    const atual = !!grid[k]
+    const proximo = !atual
 
-  const avaliados = useMemo(() => {
-    const q = buscaSim.trim().toLowerCase()
-    const base = marcadosHoje
-    if (!q) return base
-    return base.filter((r) => (r.agente || '').toLowerCase().includes(q))
-  }, [marcadosHoje, buscaSim])
+    // otimista
+    setGrid((prev) => ({ ...prev, [k]: proximo }))
+    setSalvandoKey(k)
 
-  async function marcarComoAvaliado(nome: string) {
     try {
-      setSalvandoNome(nome)
       const { data: sess } = await supabase.auth.getSession()
       const email = sess.session?.user?.email || null
 
-      const { error } = await supabase.from('monitoria_agente_dias').upsert(
-        [
-          {
-            mes,
-            dia,
-            agente: nome,
-            avaliado: true,
-            marcado_por: email,
-          },
-        ],
-        { onConflict: 'mes,dia,agente' }
-      )
-      if (error) throw error
-
-      await carregarTudo()
+      if (proximo) {
+        // marcar
+        const { error } = await supabase.from('monitoria_agente_dias').upsert(
+          [
+            {
+              mes,
+              dia,
+              agente: agenteNome,
+              avaliado: true,
+              marcado_por: email,
+            },
+          ],
+          { onConflict: 'mes,dia,agente' }
+        )
+        if (error) throw error
+      } else {
+        // desmarcar
+        const { error } = await supabase
+          .from('monitoria_agente_dias')
+          .delete()
+          .eq('mes', mes)
+          .eq('dia', dia)
+          .eq('agente', agenteNome)
+        if (error) throw error
+      }
     } catch (err: any) {
       console.error(err)
-      alert('Erro ao marcar: ' + (err?.message || 'Erro desconhecido'))
+      // rollback
+      setGrid((prev) => ({ ...prev, [k]: atual }))
+      alert('Erro ao salvar: ' + (err?.message || 'Erro desconhecido'))
     } finally {
-      setSalvandoNome(null)
-    }
-  }
-
-  async function voltarParaNaoAvaliado(nome: string) {
-    try {
-      setSalvandoNome(nome)
-
-      const { error } = await supabase
-        .from('monitoria_agente_dias')
-        .delete()
-        .eq('mes', mes)
-        .eq('dia', dia)
-        .eq('agente', nome)
-
-      if (error) throw error
-
-      await carregarTudo()
-    } catch (err: any) {
-      console.error(err)
-      alert('Erro ao voltar: ' + (err?.message || 'Erro desconhecido'))
-    } finally {
-      setSalvandoNome(null)
+      setSalvandoKey(null)
     }
   }
 
   function exportarCSV() {
     if (!agentes.length) return alert('Sem agentes para exportar.')
 
-    const dataStr = yyyymmdd(dataDia)
-    const headers = ['data', 'agente', 'status', 'marcado_por', 'updated_at']
+    const headers = ['mes', 'dia', 'agente', 'avaliado']
 
-    const mapMarcado = new Map<string, Marcacao>()
-    for (const r of marcadosHoje) mapMarcado.set(r.agente, r)
-
-    const rows = agentes.map((a) => {
-      const mk = mapMarcado.get(a.nome)
-      return {
-        data: dataStr,
-        agente: a.nome,
-        status: mk ? 'Avaliados' : 'Não avaliados',
-        marcado_por: mk?.marcado_por ?? '',
-        updated_at: mk?.updated_at ?? '',
-      }
-    })
+    const lines: string[] = []
+    lines.push(headers.join(','))
 
     const escape = (v: any) => {
       const s = String(v ?? '')
@@ -195,20 +201,30 @@ export default function ControleDiarioMonitoriaPage() {
       return s
     }
 
-    const lines = [
-      headers.join(','),
-      ...rows.map((r) => headers.map((h) => escape((r as any)[h])).join(',')),
-    ]
+    for (const a of agentes) {
+      for (const d of dias) {
+        const checked = !!grid[key(a.nome, d)]
+        const row = {
+          mes,
+          dia: d,
+          agente: a.nome,
+          avaliado: checked ? 'Sim' : 'Não',
+        }
+        lines.push(headers.map((h) => escape((row as any)[h])).join(','))
+      }
+    }
 
     const csv = lines.join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `controle_monitoria_${dataStr}.csv`
+    a.download = `controle_monitoria_${mes}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const totalMarcados = useMemo(() => Object.values(grid).filter(Boolean).length, [grid])
 
   if (checkingAuth) {
     return (
@@ -224,19 +240,26 @@ export default function ControleDiarioMonitoriaPage() {
         {/* HEADER */}
         <div className="rounded-2xl bg-white p-6 shadow flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-[#2687e2]">Controle Diário</h1>
+            <h1 className="text-3xl font-extrabold text-[#0f172a]">{nomeMesTopo(mes)}</h1>
             <p className="text-sm text-[#475569]">
-              {formatPtBrLong(dataDia)} — marque quem já foi avaliado hoje
+              Marque os dias em que cada agente foi avaliado (controle mensal)
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-xl bg-[#0f172a] text-white px-4 py-2 text-sm font-semibold">
+              Checks no mês: <span className="font-extrabold">{totalMarcados}</span>
+            </div>
+
             <button
               type="button"
-              onClick={carregarTudo}
+              onClick={() => {
+                carregarAgentes()
+                carregarMarcacoesDoMes()
+              }}
               className="rounded-lg border border-[#334155] bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#111827]"
             >
-              {carregando ? 'Recarregando…' : 'Recarregar'}
+              {carregandoAgentes || carregandoMarcacoes ? 'Recarregando…' : 'Recarregar'}
             </button>
 
             <button
@@ -249,133 +272,81 @@ export default function ControleDiarioMonitoriaPage() {
           </div>
         </div>
 
-        {/* DOIS QUADROS */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* NÃO AVALIADOS */}
-          <div className="rounded-2xl bg-rose-50/70 p-6 shadow border border-rose-200">
-            <div className="flex items-end justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-extrabold text-rose-900">
-                  Não avaliados hoje
-                </h2>
-                <p className="text-sm text-rose-800/80">
-                  Total: <strong>{naoAvaliados.length}</strong>
-                </p>
-              </div>
+        {/* TABELA (mensal) */}
+        <div className="rounded-2xl bg-[#f1f5f9] p-6 shadow border border-[#cbd5e1]">
+          <div className="rounded-2xl bg-white p-4 border border-[#cbd5e1]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-[#0f172a]">
+                <thead>
+                  <tr className="text-left">
+                    <th className="sticky left-0 z-10 bg-white py-2 pr-3 font-extrabold min-w-[260px]">
+                      Agente
+                    </th>
 
-              <input
-                type="text"
-                value={buscaNao}
-                onChange={(e) => setBuscaNao(e.target.value)}
-                className="w-64 rounded-lg border border-rose-200 bg-white p-2 text-[#0f172a]"
-                placeholder="Buscar agente…"
-              />
-            </div>
+                    {dias.map((d) => (
+                      <th key={d} className="py-2 px-2 text-center font-extrabold w-[44px]">
+                        {d}
+                      </th>
+                    ))}
 
-            <div className="rounded-xl bg-white border border-rose-100 overflow-hidden">
-              <div className="max-h-[62vh] overflow-auto">
-                <table className="w-full text-sm text-[#0f172a]">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="text-left">
-                      <th className="py-3 px-4 font-extrabold">Agente</th>
-                      <th className="py-3 px-4 font-extrabold w-[180px]">Ação</th>
+                    <th className="py-2 pl-3 text-center font-extrabold w-[90px]">Total</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {agentes.length === 0 ? (
+                    <tr>
+                      <td className="py-4 text-[#334155]" colSpan={dias.length + 2}>
+                        Nenhum agente encontrado.
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {naoAvaliados.length === 0 ? (
-                      <tr>
-                        <td className="py-4 px-4 text-[#334155]" colSpan={2}>
-                          Nenhum agente pendente hoje 🎉
-                        </td>
-                      </tr>
-                    ) : (
-                      naoAvaliados.map((a) => (
-                        <tr key={String(a.id)} className="border-t border-rose-100">
-                          <td className="py-3 px-4 font-semibold">{a.nome}</td>
-                          <td className="py-3 px-4">
-                            <button
-                              type="button"
-                              onClick={() => marcarComoAvaliado(a.nome)}
-                              disabled={salvandoNome === a.nome}
-                              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                            >
-                              {salvandoNome === a.nome ? 'Marcando…' : 'Marcar como avaliado'}
-                            </button>
+                  ) : (
+                    agentes.map((a) => {
+                      let total = 0
+                      for (const d of dias) if (grid[key(a.nome, d)]) total++
+
+                      return (
+                        <tr key={String(a.id)} className="border-t border-[#e2e8f0]">
+                          <td className="sticky left-0 z-10 bg-white py-2 pr-3 font-semibold">
+                            {a.nome}
+                          </td>
+
+                          {dias.map((d) => {
+                            const k = key(a.nome, d)
+                            const checked = !!grid[k]
+                            const saving = salvandoKey === k
+
+                            return (
+                              <td key={d} className="py-2 px-2 text-center">
+                                <label className="inline-flex items-center justify-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggle(a.nome, d)}
+                                    disabled={saving}
+                                    className="h-4 w-4 accent-emerald-600"
+                                  />
+                                </label>
+                              </td>
+                            )
+                          })}
+
+                          <td className="py-2 pl-3 text-center">
+                            <span className="inline-flex rounded-full bg-[#0f172a] px-3 py-1 text-xs font-extrabold text-white">
+                              {total}
+                            </span>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* AVALIADOS */}
-          <div className="rounded-2xl bg-emerald-50/70 p-6 shadow border border-emerald-200">
-            <div className="flex items-end justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-extrabold text-emerald-900">
-                  Agentes já avaliados hoje
-                </h2>
-                <p className="text-sm text-emerald-800/80">
-                  Total: <strong>{avaliados.length}</strong>
-                </p>
-              </div>
-
-              <input
-                type="text"
-                value={buscaSim}
-                onChange={(e) => setBuscaSim(e.target.value)}
-                className="w-64 rounded-lg border border-emerald-200 bg-white p-2 text-[#0f172a]"
-                placeholder="Buscar agente…"
-              />
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            <div className="rounded-xl bg-white border border-emerald-100 overflow-hidden">
-              <div className="max-h-[62vh] overflow-auto">
-                <table className="w-full text-sm text-[#0f172a]">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="text-left">
-                      <th className="py-3 px-4 font-extrabold">Agente</th>
-                      <th className="py-3 px-4 font-extrabold w-[220px]">Marcado em</th>
-                      <th className="py-3 px-4 font-extrabold w-[200px]">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {avaliados.length === 0 ? (
-                      <tr>
-                        <td className="py-4 px-4 text-[#334155]" colSpan={3}>
-                          Nenhum agente avaliado ainda hoje.
-                        </td>
-                      </tr>
-                    ) : (
-                      avaliados.map((r) => (
-                        <tr key={r.id} className="border-t border-emerald-100">
-                          <td className="py-3 px-4 font-semibold">{r.agente}</td>
-                          <td className="py-3 px-4 text-[#334155]">
-                            {r.updated_at ? new Date(r.updated_at).toLocaleString('pt-BR') : '—'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <button
-                              type="button"
-                              onClick={() => voltarParaNaoAvaliado(r.agente)}
-                              disabled={salvandoNome === r.agente}
-                              className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-                            >
-                              {salvandoNome === r.agente ? 'Voltando…' : 'Voltar para não avaliados'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <p className="text-xs text-emerald-900/70 mt-3">
-              Se marcou errado, é só clicar em <strong>Voltar para não avaliados</strong>.
+            <p className="text-xs text-[#334155] mt-3">
+              Ao virar o mês, o controle “zera” automaticamente porque a tela passa a usar o próximo{' '}
+              <strong>YYYY-MM</strong>. Os dados anteriores ficam salvos no Supabase.
             </p>
           </div>
         </div>

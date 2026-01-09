@@ -52,6 +52,7 @@ const menuLinks = [
   label: 'Monitoria',
   sub: [
     { href: '/monitoria-qualidade/controle-diario', label: 'Controle Diário' },
+    { href: '/monitoria-qualidade/controle-drive', label: 'Controle do Drive' },
     { href: '/monitoria-qualidade', label: 'Monitoria de Qualidade' },
   { href: '/qualidade-registros', label: 'Avaliação & Reclamações' },
   { href: '/monitoria-qualidade/elogios', label: 'Elogios' },

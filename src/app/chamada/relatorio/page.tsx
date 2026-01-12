@@ -11,7 +11,7 @@ type Linha = {
   created_at: string
 }
 
-// ✅ inclui plantão
+// ✅ inclui plantão + licença casamento
 const TIPOS = [
   'Presente',
   'Plantão Final de Semana',
@@ -21,6 +21,7 @@ const TIPOS = [
   'Afastado',
   'Licença Maternidade',
   'Licença Paternidade',
+  'Licença Casamento',
   'Ausente',
 ] as const
 type Tipo = (typeof TIPOS)[number]
@@ -136,6 +137,7 @@ export default function RelatoriosPage() {
       case 'Afastado': return '#9c27b0'
       case 'Licença Maternidade': return '#ff4081'
       case 'Licença Paternidade': return '#5c6bc0'
+      case 'Licença Casamento': return '#f708d7' // ✅ novo
       case 'Ausente': return '#757575'
       default: return '#000'
     }

@@ -13,6 +13,7 @@ type TipoMarca =
   | 'Afastado'
   | 'Licença Maternidade'
   | 'Licença Paternidade'
+  | 'Licença Casamento'
   | 'Ausente'
 
 // data local (Brasil)
@@ -55,6 +56,10 @@ export default function ChamadaPage() {
       { value: 'Afastado' as const, label: 'Afastado', badge: '⛔', cor: '#9c27b0' },
       { value: 'Licença Maternidade' as const, label: 'Licença Maternidade', badge: '👶', cor: '#ff4081' },
       { value: 'Licença Paternidade' as const, label: 'Licença Paternidade', badge: '🍼', cor: '#5c6bc0' },
+
+      // ✅ NOVO
+      { value: 'Licença Casamento' as const, label: 'Licença Casamento', badge: '💍', cor: '#f708d7' },
+
       { value: 'Ausente' as const, label: 'Ausente', badge: '🚫', cor: '#757575' },
     ],
     []
@@ -168,6 +173,7 @@ export default function ChamadaPage() {
       case 'Afastado': return '#9c27b0'
       case 'Licença Maternidade': return '#ff4081'
       case 'Licença Paternidade': return '#5c6bc0'
+      case 'Licença Casamento': return '#f708d7'
       case 'Ausente': return '#757575'
       default: return '#757575'
     }

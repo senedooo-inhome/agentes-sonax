@@ -14,15 +14,7 @@ import {
 } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Tooltip,
-  Legend
-)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend)
 
 // ✅ Plugin para escrever valor em cima das barras (tema claro)
 const topValuePlugin: any = {
@@ -63,11 +55,9 @@ type Stats = {
 
 type ResumoStatus = { label: string; valor: number }
 type ErrosAgenteMap = Record<string, number>
+type ErrosEmpresaMap = Record<string, number>
 
-type PlantaoLinha = {
-  nome: string
-  qtd: number
-}
+type PlantaoLinha = { nome: string; qtd: number }
 
 // ✅ Data local (Brasil) -> "YYYY-MM-DD"
 function toISODateLocal(d: Date) {
@@ -120,15 +110,18 @@ export default function DashboardPage() {
     totalAgentes: 0,
   })
 
+  // (mantido, mas não é mais exibido no gráfico principal)
   const [resumoStatus, setResumoStatus] = useState<ResumoStatus[]>([])
+
   const [errosPorAgente, setErrosPorAgente] = useState<ErrosAgenteMap>({})
+  const [errosPorEmpresa, setErrosPorEmpresa] = useState<ErrosEmpresaMap>({}) // ✅ NOVO
   const [mesLabel, setMesLabel] = useState('')
   const [atualizando, setAtualizando] = useState(false)
 
   // ✅ PLANTÕES (mês)
   const [plantoesPorAgente, setPlantoesPorAgente] = useState<PlantaoLinha[]>([])
 
-  // ✅ NOVO: NOMES dos agentes em férias
+  // ✅ NOMES dos agentes em férias
   const [agentesFerias, setAgentesFerias] = useState<string[]>([])
 
   useEffect(() => {
@@ -143,9 +136,7 @@ export default function DashboardPage() {
       setMesLabel(label)
 
       // 1) Total de agentes
-      const { count: totalAgentes } = await supabase
-        .from('agentes')
-        .select('*', { count: 'exact', head: true })
+      const { count: totalAgentes } = await supabase.from('agentes').select('*', { count: 'exact', head: true })
 
       // 2) Férias / Folgas (status atual) + nomes
       const [{ count: ferias }, { count: folgas }] = await Promise.all([
@@ -170,7 +161,7 @@ export default function DashboardPage() {
         .gte('data', inicio)
         .lte('data', fim)
 
-      // 4) Resumo status (presencas.tipo)
+      // 4) Resumo status (presencas.tipo) — mantido
       const { data: presencasMes } = await supabase
         .from('presencas')
         .select('tipo')
@@ -225,22 +216,24 @@ export default function DashboardPage() {
 
       setPlantoesPorAgente(listaPlantao)
 
-      // 6) Erros clínicas / SAC do mês
+      // 6) Erros clínicas / SAC do mês (agora trazendo empresa também)
       const { data: errosClinicasData } = await supabase
         .from('erros_agentes')
-        .select('id, nicho, data, agente')
+        .select('id, nicho, data, agente, empresa')
         .in('nicho', ['Clínica', 'Clinica'])
         .gte('data', inicio)
         .lte('data', fim)
 
       const { data: errosSacData } = await supabase
         .from('erros_agentes')
-        .select('id, nicho, data, agente')
+        .select('id, nicho, data, agente, empresa')
         .eq('nicho', 'SAC')
         .gte('data', inicio)
         .lte('data', fim)
 
       const todosErros = [...(errosClinicasData || []), ...(errosSacData || [])]
+
+      // ✅ TOP 5 por agente (mantido)
       const contadorErrosPorAgente: ErrosAgenteMap = todosErros.reduce((acc: any, item: any) => {
         const nome = item.agente || 'Não informado'
         acc[nome] = (acc[nome] || 0) + 1
@@ -252,6 +245,19 @@ export default function DashboardPage() {
         .slice(0, 5)
 
       setErrosPorAgente(Object.fromEntries(top5))
+
+      // ✅ NOVO: TOP 10 empresas com mais erros (mês)
+      const contadorErrosPorEmpresa: ErrosEmpresaMap = todosErros.reduce((acc: any, item: any) => {
+        const emp = (item.empresa || '').trim() || 'Não informado'
+        acc[emp] = (acc[emp] || 0) + 1
+        return acc
+      }, {})
+
+      const top10Emp = Object.entries(contadorErrosPorEmpresa)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+
+      setErrosPorEmpresa(Object.fromEntries(top10Emp))
 
       // 7) Ligações ativas clínicas / SAC do mês
       const { count: ligClinicas } = await supabase
@@ -286,24 +292,23 @@ export default function DashboardPage() {
     }
   }
 
-  // ======== GRÁFICO: RESUMO STATUS =========
-  const statusBarData = useMemo(
+  // ======== GRÁFICO: TOP 10 EMPRESAS (NOVO) =========
+  const empresaTopBarData = useMemo(
     () => ({
-      labels: resumoStatus.map((r) => r.label),
+      labels: Object.keys(errosPorEmpresa),
       datasets: [
         {
-          label: 'Quantidade',
-          data: resumoStatus.map((r) => r.valor),
-          backgroundColor: '#2687e2',
+          label: 'Quantidade de erros (mês)',
+          data: Object.values(errosPorEmpresa),
+          backgroundColor: '#F5C542', // ✅ amarelo premium
           borderRadius: 10,
         },
       ],
     }),
-    [resumoStatus]
+    [errosPorEmpresa]
   )
 
-  const statusBarOptions: any = {
-    indexAxis: 'y',
+  const empresaTopBarOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: true } },
@@ -313,7 +318,7 @@ export default function DashboardPage() {
     },
   }
 
-  // ======== GRÁFICO: TOP 5 ERROS =========
+  // ======== GRÁFICO: TOP 5 ERROS (AGENTES) =========
   const topBarData = useMemo(
     () => ({
       labels: Object.keys(errosPorAgente),
@@ -373,18 +378,26 @@ export default function DashboardPage() {
           <Card titulo="Folgas (status atual)" valor={stats.folgas} />
           <Card titulo="Erros Clínicas no mês" valor={stats.errosClinicas} corValor="#ef4444" />
           <Card titulo="Erros SAC no mês" valor={stats.errosSac} corValor="#ef4444" />
-          <Card titulo="Ligações Clínicas no mês" valor={stats.ligacoesClinicas} />
-          <Card titulo="Ligações SAC no mês" valor={stats.ligacoesSac} />
+          {/* ✅ ALTERADO */}
+          <Card titulo="Ligações ativas Clínicas no mês" valor={stats.ligacoesClinicas} />
+          {/* ✅ ALTERADO */}
+          <Card titulo="Ligações ativas SAC no mês" valor={stats.ligacoesSac} />
           <Card titulo="Total de Agentes" valor={stats.totalAgentes} destaque />
         </section>
 
         {/* GRÁFICOS */}
         <section className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* ✅ TROCOU: Status -> Empresas Top 10 */}
           <div className="bg-white border border-gray-200 rounded-2xl shadow p-6 h-[360px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Status dos Agentes (Mês Atual)</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Empresas com mais erros (Top 10)
+            </h2>
             <div className="h-[280px]">
-              <Bar data={statusBarData} options={statusBarOptions} />
+              <Bar data={empresaTopBarData} options={empresaTopBarOptions} />
             </div>
+            <p className="text-xs text-gray-500 mt-2">
+              *Quantidade de erros no mês (barras em amarelo premium).
+            </p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-2xl shadow p-6 h-[360px]">
@@ -397,14 +410,11 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ✅ PLANTÕES NO MÊS + NOMES EM FÉRIAS */}
+        {/* PLANTÕES NO MÊS + NOMES EM FÉRIAS */}
         <section className="mt-6 bg-white border border-gray-200 rounded-2xl shadow p-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="text-lg font-semibold text-gray-900">Plantões no mês (por agente)</h2>
-
-            <span className="text-xs text-gray-500">
-              {plantoesPorAgente.length} agentes com plantão registrado
-            </span>
+            <span className="text-xs text-gray-500">{plantoesPorAgente.length} agentes com plantão registrado</span>
           </div>
 
           {plantoesPorAgente.length === 0 ? (
@@ -413,10 +423,8 @@ export default function DashboardPage() {
             </p>
           ) : (
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* TOP 10 */}
               <div className="rounded-xl border border-gray-200 p-4">
                 <p className="text-sm font-semibold text-gray-900 mb-3">Top 10 (mais plantões)</p>
-
                 <ul className="space-y-2">
                   {topPlantoes.map((p, idx) => (
                     <li
@@ -432,7 +440,6 @@ export default function DashboardPage() {
                 </ul>
               </div>
 
-              {/* ✅ NOVO BLOCO: NOMES DOS AGENTES EM FÉRIAS */}
               <div className="rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <p className="text-sm font-semibold text-gray-900">Nomes dos agentes em férias</p>
@@ -440,7 +447,9 @@ export default function DashboardPage() {
                 </div>
 
                 {agentesFerias.length === 0 ? (
-                  <p className="text-sm text-gray-600 mt-3">Nenhum agente está com status <strong>Férias</strong>.</p>
+                  <p className="text-sm text-gray-600 mt-3">
+                    Nenhum agente está com status <strong>Férias</strong>.
+                  </p>
                 ) : (
                   <div className="mt-3 max-h-[320px] overflow-auto rounded-lg border border-gray-100">
                     <ul className="divide-y">
@@ -479,10 +488,7 @@ function Card({
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow p-4">
       <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">{titulo}</p>
-      <p
-        className="text-3xl font-extrabold"
-        style={{ color: destaque ? '#2687e2' : corValor || '#111827' }}
-      >
+      <p className="text-3xl font-extrabold" style={{ color: destaque ? '#2687e2' : corValor || '#111827' }}>
         {valor}
       </p>
     </div>

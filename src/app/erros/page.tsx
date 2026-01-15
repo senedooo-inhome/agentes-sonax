@@ -33,16 +33,23 @@ export default function CadastrarErrosPage() {
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.auth.getSession()
-      const email = data.session?.user?.email || ''
+      const email = (data.session?.user?.email || '').toLowerCase()
+
       if (!email) {
         router.replace('/login?next=' + window.location.pathname)
         return
       }
-      if (email !== 'supervisao@sonax.net.br') {
-        alert('Acesso restrito à supervisão.')
+
+      // ✅ AGORA: libera 2 acessos
+      const allowedEmails = ['supervisao@sonax.net.br', 'sonaxinhome@gmail.com']
+      const permitido = allowedEmails.includes(email)
+
+      if (!permitido) {
+        alert('Acesso restrito.')
         router.replace('/')
         return
       }
+
       setCheckingAuth(false)
     })()
   }, [router])

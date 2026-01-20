@@ -25,6 +25,9 @@ function hojeYYYYMMDD() {
   return new Date().toISOString().slice(0, 10)
 }
 
+// ✅ valor padrão para erros que não têm empresa
+const EMPRESA_NAO_SE_APLICA = 'Não se aplica'
+
 export default function CadastrarErrosPage() {
   const router = useRouter()
 
@@ -40,7 +43,7 @@ export default function CadastrarErrosPage() {
         return
       }
 
-      // ✅ AGORA: libera 2 acessos
+      // ✅ libera 2 acessos
       const allowedEmails = ['supervisao@sonax.net.br', 'sonaxinhome@gmail.com']
       const permitido = allowedEmails.includes(email)
 
@@ -117,7 +120,7 @@ export default function CadastrarErrosPage() {
   const [form, setForm] = useState({
     data: hojeYYYYMMDD(),
     nicho: '' as Nicho,
-    empresa: '',
+    empresa: '', // pode ser EMPRESA_NAO_SE_APLICA
     supervisor: '',
     agente: '',
     tipo: '' as '' | TipoErro,
@@ -144,7 +147,12 @@ export default function CadastrarErrosPage() {
   async function salvar() {
     if (!form.data) return alert('Preencha a data.')
     if (!form.nicho) return alert('Selecione o nicho.')
-    if (!form.empresa) return alert('Selecione a empresa.')
+
+    // ✅ agora empresa pode ser "Não se aplica"
+    const empresaValida =
+      form.empresa === EMPRESA_NAO_SE_APLICA || (form.empresa && form.empresa.trim().length > 0)
+    if (!empresaValida) return alert('Selecione a empresa ou "Não se aplica".')
+
     if (!form.supervisor) return alert('Selecione o supervisor.')
     if (!form.agente) return alert('Selecione o agente.')
     if (!form.tipo) return alert('Selecione o tipo do erro.')
@@ -156,9 +164,9 @@ export default function CadastrarErrosPage() {
       const payload = {
         data: form.data,
         nicho: form.nicho,
-        empresa: form.empresa, // ✅ empresas cadastradas
-        supervisor: form.supervisor, // ✅ supervisoes.nome
-        agente: form.agente, // ✅ agentes.nome
+        empresa: form.empresa, // ✅ pode ser "Não se aplica"
+        supervisor: form.supervisor,
+        agente: form.agente,
         tipo: form.tipo,
         relato: form.relato.trim(),
       }
@@ -188,9 +196,7 @@ export default function CadastrarErrosPage() {
 
   return (
     <main className="min-h-[calc(100vh-0px)] bg-[#f5f6f7] p-6">
-      {/* 16:9 / tela larga */}
       <div className="w-full max-w-[1600px] mx-auto space-y-6">
-        {/* HEADER fixo (respeitando menu fixo da sua pegada) */}
         <div className="sticky top-0 z-20 bg-[#f5f6f7] pt-2">
           <div className="rounded-2xl bg-white p-6 shadow flex flex-wrap items-center justify-between gap-4 border border-[#e2e8f0]">
             <div>
@@ -222,10 +228,8 @@ export default function CadastrarErrosPage() {
           </div>
         </div>
 
-        {/* FORM */}
         <div className="rounded-2xl bg-white p-6 shadow border border-[#e2e8f0]">
           <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
-            {/* Data */}
             <div>
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
               <input
@@ -236,7 +240,6 @@ export default function CadastrarErrosPage() {
               />
             </div>
 
-            {/* Nicho */}
             <div>
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nicho</label>
               <select
@@ -269,6 +272,10 @@ export default function CadastrarErrosPage() {
                 <option value="">
                   {carregandoListas ? 'Carregando...' : 'Selecione a empresa'}
                 </option>
+
+                {/* ✅ NOVO: não se aplica */}
+                <option value={EMPRESA_NAO_SE_APLICA}>{EMPRESA_NAO_SE_APLICA}</option>
+
                 {empresasFiltradas.map((em) => (
                   <option key={String(em.id)} value={em.nome}>
                     {em.nome}
@@ -277,7 +284,6 @@ export default function CadastrarErrosPage() {
               </select>
             </div>
 
-            {/* Supervisor */}
             <div className="lg:col-span-2">
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Supervisor</label>
               <input
@@ -304,7 +310,6 @@ export default function CadastrarErrosPage() {
               </select>
             </div>
 
-            {/* Agente */}
             <div className="lg:col-span-3">
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Agente</label>
               <input
@@ -331,7 +336,6 @@ export default function CadastrarErrosPage() {
               </select>
             </div>
 
-            {/* Tipo */}
             <div className="lg:col-span-3">
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Tipo do erro</label>
               <select
@@ -348,7 +352,6 @@ export default function CadastrarErrosPage() {
               </select>
             </div>
 
-            {/* Relato */}
             <div className="lg:col-span-6">
               <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Relato</label>
               <textarea
@@ -363,7 +366,7 @@ export default function CadastrarErrosPage() {
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-[#64748b]">
-              * Obrigatórios: Data, Nicho, Empresa, Supervisor, Agente, Tipo, Relato
+              * Obrigatórios: Data, Nicho, Empresa (ou Não se aplica), Supervisor, Agente, Tipo, Relato
             </p>
 
             <button

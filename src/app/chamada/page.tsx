@@ -57,7 +57,6 @@ export default function ChamadaPage() {
       { value: 'Licença Maternidade' as const, label: 'Licença Maternidade', badge: '👶', cor: '#ff4081' },
       { value: 'Licença Paternidade' as const, label: 'Licença Paternidade', badge: '🍼', cor: '#5c6bc0' },
 
-      // ✅ NOVO
       { value: 'Licença Casamento' as const, label: 'Licença Casamento', badge: '💍', cor: '#f708d7' },
 
       { value: 'Ausente' as const, label: 'Ausente', badge: '🚫', cor: '#757575' },
@@ -90,7 +89,6 @@ export default function ChamadaPage() {
     setMarcasHoje(map)
   }
 
-  // remove do dia e volta o agente pra Ativo
   async function removerPresenca(agenteId: string) {
     try {
       setLoading(true)
@@ -121,7 +119,6 @@ export default function ChamadaPage() {
     }
   }
 
-  // marca e grava o mesmo motivo no agente
   async function registrar(agenteId: string, tipo: TipoMarca) {
     try {
       setLoading(true)
@@ -144,7 +141,6 @@ export default function ChamadaPage() {
         if (e2) throw e2
       }
 
-      // ✅ agora Plantão também vira status do agente (pra aparecer no nome)
       const novoStatus = tipo === 'Presente' ? 'Ativo' : tipo
 
       await supabase
@@ -193,16 +189,12 @@ export default function ChamadaPage() {
     return agentes.filter(a => norm(a.nome).includes(nq))
   }, [agentes, q])
 
-  // ✅ Presente + Plantão contam como "logou"
   const listaPresente = agentes.filter(a => ehPresenca(marcasHoje[a.id]))
-
   const listaNaoLogou = agentes.filter(a => a.status === 'Ativo' && !marcasHoje[a.id])
 
-  // ausência = marcou hoje (mas NÃO é presença) OU status diferente de Ativo (e NÃO é Plantão)
   const listaAusencias = agentes
     .map(a => {
       const tipoHoje = marcasHoje[a.id] as TipoMarca | undefined
-
       const motivo: TipoMarca | undefined =
         tipoHoje && !ehPresenca(tipoHoje)
           ? tipoHoje
@@ -215,10 +207,10 @@ export default function ChamadaPage() {
     .filter(a => a.tipo) as (Agente & { tipo: TipoMarca })[]
 
   return (
-    <main className="min-h-screen bg-[#f5f6f7] p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <main className="min-h-screen bg-[#f5f6f7] p-6 w-full">
+      <div className="w-full max-w-none space-y-6">
         {/* header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <h1 className="text-2xl font-bold text-[#2687e2]">Data — {hoje}</h1>
           <div className="flex items-center gap-2 flex-wrap">
             {menuLinks.map(link => (
@@ -239,10 +231,10 @@ export default function ChamadaPage() {
           </div>
         </div>
 
-        {/* grid */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* ✅ ALTURA FIXA DO GRID (sem deixar página ficar gigante) */}
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           {/* CHAMADA */}
-          <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
+          <div className="rounded-xl bg-white p-6 shadow h-[calc(100vh-170px)] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Chamada de presença</h2>
 
             <div className="mb-3 flex items-center gap-2">
@@ -267,134 +259,145 @@ export default function ChamadaPage() {
               {agentesFiltrados.length} de {agentes.length} agentes
             </p>
 
-            <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-              {agentesFiltrados.map(a => {
-                const marcado = marcasHoje[a.id] as TipoMarca | undefined
-                const temMarcacaoHoje = Boolean(marcado)
-                const estaAusentePeloStatus =
-                  !temMarcacaoHoje &&
-                  a.status !== 'Ativo' &&
-                  a.status !== 'Plantão Final de Semana'
-
-                return (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3"
-                    style={{ borderLeft: `6px solid ${corStatusAgente(a.status)}` }}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium text-black">
-                        {a.nome} — {a.status}
-                      </span>
-
-                      <select
-                        disabled={loading}
-                        value={temMarcacaoHoje ? marcado! : ''}
-                        onChange={e => {
-                          const val = e.target.value
-                          if (val === '__remover') {
-                            removerPresenca(a.id)
-                          } else {
-                            registrar(a.id, (val || 'Presente') as TipoMarca)
-                          }
-                        }}
-                        className="rounded-lg border p-2 text-black"
-                      >
-                        <option
-                          value=""
-                          disabled={!temMarcacaoHoje}
-                          hidden={temMarcacaoHoje}
-                        >
-                          {temMarcacaoHoje ? 'Alterar…' : 'Marcar…'}
-                        </option>
-
-                        {(temMarcacaoHoje || estaAusentePeloStatus) && (
-                          <option value="__remover">❌ Remover marcação</option>
-                        )}
-
-                        {opcoes.map(op => (
-                          <option key={op.value} value={op.value}>
-                            {op.badge} {op.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </li>
-                )
-              })}
-
-              {agentesFiltrados.length === 0 && (
-                <p className="text-gray-500">Nenhum agente encontrado.</p>
-              )}
-            </ul>
-          </div>
-
-          {/* QUEM LOGOU */}
-          <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
-            <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
-
-            {listaPresente.length === 0 ? (
-              <p className="text-gray-500">Ninguém marcado como Presente/Plantão.</p>
-            ) : (
-              <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaPresente.map(a => {
-                  const tipo = marcasHoje[a.id]
-                  const badge = opcoes.find(o => o.value === tipo)?.badge ?? '✅'
-                  const label = opcoes.find(o => o.value === tipo)?.label ?? 'Presente'
-                  const cor = tipo ? corTipo(tipo) : '#46a049'
+            {/* ✅ rolagem interna */}
+            <div className="flex-1 overflow-y-auto pr-1">
+              <ul className="space-y-2">
+                {agentesFiltrados.map(a => {
+                  const marcado = marcasHoje[a.id] as TipoMarca | undefined
+                  const temMarcacaoHoje = Boolean(marcado)
+                  const estaAusentePeloStatus =
+                    !temMarcacaoHoje &&
+                    a.status !== 'Ativo' &&
+                    a.status !== 'Plantão Final de Semana'
 
                   return (
                     <li
                       key={a.id}
-                      className="rounded-lg border p-3 font-medium text-black"
-                      style={{ borderLeft: `6px solid ${cor}` }}
+                      className="rounded-lg border p-3"
+                      style={{ borderLeft: `6px solid ${corStatusAgente(a.status)}` }}
                     >
-                      {a.nome} — {badge} {label}
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-black">
+                          {a.nome} — {a.status}
+                        </span>
+
+                        <select
+                          disabled={loading}
+                          value={temMarcacaoHoje ? marcado! : ''}
+                          onChange={e => {
+                            const val = e.target.value
+                            if (val === '__remover') {
+                              removerPresenca(a.id)
+                            } else {
+                              registrar(a.id, (val || 'Presente') as TipoMarca)
+                            }
+                          }}
+                          className="rounded-lg border p-2 text-black"
+                        >
+                          <option
+                            value=""
+                            disabled={!temMarcacaoHoje}
+                            hidden={temMarcacaoHoje}
+                          >
+                            {temMarcacaoHoje ? 'Alterar…' : 'Marcar…'}
+                          </option>
+
+                          {(temMarcacaoHoje || estaAusentePeloStatus) && (
+                            <option value="__remover">❌ Remover marcação</option>
+                          )}
+
+                          {opcoes.map(op => (
+                            <option key={op.value} value={op.value}>
+                              {op.badge} {op.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </li>
                   )
                 })}
+
+                {agentesFiltrados.length === 0 && (
+                  <p className="text-gray-500">Nenhum agente encontrado.</p>
+                )}
               </ul>
-            )}
+            </div>
+          </div>
+
+          {/* QUEM LOGOU */}
+          <div className="rounded-xl bg-white p-6 shadow h-[calc(100vh-170px)] flex flex-col">
+            <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Quem logou hoje</h2>
+
+            <div className="flex-1 overflow-y-auto pr-1">
+              {listaPresente.length === 0 ? (
+                <p className="text-gray-500">Ninguém marcado como Presente/Plantão.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {listaPresente.map(a => {
+                    const tipo = marcasHoje[a.id]
+                    const badge = opcoes.find(o => o.value === tipo)?.badge ?? '✅'
+                    const label = opcoes.find(o => o.value === tipo)?.label ?? 'Presente'
+                    const cor = tipo ? corTipo(tipo) : '#46a049'
+
+                    return (
+                      <li
+                        key={a.id}
+                        className="rounded-lg border p-3 font-medium text-black"
+                        style={{ borderLeft: `6px solid ${cor}` }}
+                      >
+                        {a.nome} — {badge} {label}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
 
           {/* AINDA NÃO LOGARAM */}
-          <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
+          <div className="rounded-xl bg-white p-6 shadow h-[calc(100vh-170px)] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ainda não logaram</h2>
-            {listaNaoLogou.length === 0 ? (
-              <p className="text-gray-500">Todos já marcaram presença hoje 🎉</p>
-            ) : (
-              <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaNaoLogou.map(a => (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: '6px solid #f19a37' }}
-                  >
-                    {a.nome} — ⏳ Ainda não logou
-                  </li>
-                ))}
-              </ul>
-            )}
+
+            <div className="flex-1 overflow-y-auto pr-1">
+              {listaNaoLogou.length === 0 ? (
+                <p className="text-gray-500">Todos já marcaram presença hoje 🎉</p>
+              ) : (
+                <ul className="space-y-2">
+                  {listaNaoLogou.map(a => (
+                    <li
+                      key={a.id}
+                      className="rounded-lg border p-3 font-medium text-black"
+                      style={{ borderLeft: '6px solid #f19a37' }}
+                    >
+                      {a.nome} — ⏳ Ainda não logou
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           {/* AUSÊNCIA */}
-          <div className="rounded-xl bg-white p-6 shadow h-[70vh] flex flex-col">
+          <div className="rounded-xl bg-white p-6 shadow h-[calc(100vh-170px)] flex flex-col">
             <h2 className="mb-4 text-lg font-semibold text-[#2687e2]">Ausência (Motivo)</h2>
-            {listaAusencias.length === 0 ? (
-              <p className="text-gray-500">Sem ausências registradas hoje.</p>
-            ) : (
-              <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
-                {listaAusencias.map(a => (
-                  <li
-                    key={a.id}
-                    className="rounded-lg border p-3 font-medium text-black"
-                    style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}
-                  >
-                    {a.nome} — {opcoes.find(o => o.value === a.tipo)?.badge} {a.tipo}
-                  </li>
-                ))}
-              </ul>
-            )}
+
+            <div className="flex-1 overflow-y-auto pr-1">
+              {listaAusencias.length === 0 ? (
+                <p className="text-gray-500">Sem ausências registradas hoje.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {listaAusencias.map(a => (
+                    <li
+                      key={a.id}
+                      className="rounded-lg border p-3 font-medium text-black"
+                      style={{ borderLeft: `6px solid ${corTipo(a.tipo)}` }}
+                    >
+                      {a.nome} — {opcoes.find(o => o.value === a.tipo)?.badge} {a.tipo}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       </div>

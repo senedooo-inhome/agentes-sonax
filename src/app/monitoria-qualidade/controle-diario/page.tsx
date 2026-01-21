@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
-type Agente = { id: string | number; nome: string }
+type Agente = { nome: string }
+
 type Marcacao = {
   id: string
   mes: string
@@ -28,10 +29,17 @@ function diasDoMes(yyyyMm: string) {
 function nomeMesTopo(yyyyMm: string) {
   const [y, m] = yyyyMm.split('-').map(Number)
   const d = new Date(y, m - 1, 1)
-  // ex: Janeiro 2026
   const mesNome = d.toLocaleDateString('pt-BR', { month: 'long' })
   const mesCapitalizado = mesNome.charAt(0).toUpperCase() + mesNome.slice(1)
   return `${mesCapitalizado} de ${y}`
+}
+
+function normKey(s: string) {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 export default function ControleDiarioMonitoriaPage() {
@@ -42,7 +50,7 @@ export default function ControleDiarioMonitoriaPage() {
   useEffect(() => {
     ;(async () => {
       const { data } = await supabase.auth.getSession()
-      const email = data.session?.user?.email || ''
+      const email = (data.session?.user?.email || '').toLowerCase()
       if (email !== 'supervisao@sonax.net.br') {
         router.replace('/')
         return
@@ -51,18 +59,14 @@ export default function ControleDiarioMonitoriaPage() {
     })()
   }, [router])
 
-  // ✅ sempre mês atual (vira automaticamente quando muda o mês)
+  // ✅ sempre mês atual
   const [mes, setMes] = useState(() => yyyyMm(new Date()))
 
-  // Atualiza o mês automaticamente quando “virar o mês”
-  // (não precisa apagar nada, só muda o filtro)
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = new Date()
-      const mm = yyyyMm(now)
+      const mm = yyyyMm(new Date())
       setMes((prev) => (prev === mm ? prev : mm))
-    }, 30_000) // checa a cada 30s
-
+    }, 30_000)
     return () => clearInterval(timer)
   }, [])
 
@@ -70,25 +74,37 @@ export default function ControleDiarioMonitoriaPage() {
 
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [carregandoAgentes, setCarregandoAgentes] = useState(false)
-
-  const [marcacoes, setMarcacoes] = useState<Marcacao[]>([])
   const [carregandoMarcacoes, setCarregandoMarcacoes] = useState(false)
 
   // grid: chave "agente__dia" => boolean
-  const key = (agente: string, dia: number) => `${agente}__${dia}`
+  const key = (agenteNome: string, dia: number) => `${normKey(agenteNome)}__${dia}`
   const [grid, setGrid] = useState<Record<string, boolean>>({})
   const [salvandoKey, setSalvandoKey] = useState<string | null>(null)
+
+  // ✅ cadastrar agente
+  const [novoAgente, setNovoAgente] = useState('')
+  const [cadastrando, setCadastrando] = useState(false)
+
+  // ✅ excluir agente
+  const [excluindoAgente, setExcluindoAgente] = useState<string | null>(null)
 
   async function carregarAgentes() {
     try {
       setCarregandoAgentes(true)
+
       const { data, error } = await supabase
-        .from('agentes')
-        .select('id, nome')
-        .order('nome', { ascending: true })
+        .from('monitoria_agente_dias')
+        .select('agente')
+        .eq('mes', mes)
+        .not('agente', 'is', null)
 
       if (error) throw error
-      setAgentes(((data as any) || []) as Agente[])
+
+      const uniq = Array.from(
+        new Set((data ?? []).map((r: any) => normKey(String(r.agente))).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+      setAgentes(uniq.map((nome) => ({ nome })))
     } catch (err: any) {
       console.error(err)
       alert('Erro ao carregar agentes: ' + (err?.message || 'Erro desconhecido'))
@@ -110,10 +126,10 @@ export default function ControleDiarioMonitoriaPage() {
       if (error) throw error
 
       const rows = (((data as any) || []) as Marcacao[]) || []
-      setMarcacoes(rows)
 
       const next: Record<string, boolean> = {}
       for (const r of rows) {
+        if (!r.agente) continue
         next[key(r.agente, r.dia)] = true
       }
       setGrid(next)
@@ -126,25 +142,101 @@ export default function ControleDiarioMonitoriaPage() {
   }
 
   useEffect(() => {
-    if (!checkingAuth) {
-      carregarAgentes()
-    }
+    if (!checkingAuth) carregarAgentes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkingAuth])
+  }, [checkingAuth, mes])
 
   useEffect(() => {
-    if (!checkingAuth) {
-      carregarMarcacoesDoMes()
-    }
+    if (!checkingAuth) carregarMarcacoesDoMes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mes, checkingAuth])
+
+  async function cadastrarAgente() {
+    const nome = normKey(novoAgente)
+    if (!nome) return alert('Digite o nome do agente.')
+
+    if (agentes.some((a) => normKey(a.nome) === nome)) {
+      alert('Esse agente já está cadastrado neste mês.')
+      setNovoAgente('')
+      return
+    }
+
+    try {
+      setCadastrando(true)
+      const { data: sess } = await supabase.auth.getSession()
+      const email = sess.session?.user?.email || null
+
+      // cria um registro base no mês
+      const { error } = await supabase.from('monitoria_agente_dias').upsert(
+        [
+          {
+            mes,
+            dia: 1,
+            agente: nome,
+            avaliado: false,
+            marcado_por: email,
+          },
+        ],
+        { onConflict: 'mes,dia,agente' }
+      )
+
+      if (error) throw error
+
+      setNovoAgente('')
+      await carregarAgentes()
+      alert('Agente cadastrado com sucesso!')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao cadastrar agente: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setCadastrando(false)
+    }
+  }
+
+  async function excluirAgente(nomeAgente: string) {
+    const nome = normKey(nomeAgente)
+    const ok = confirm(
+      `Excluir o agente "${nomeAgente}" deste mês (${mes})?\n\nIsso vai apagar TODOS os checks desse agente no mês.`
+    )
+    if (!ok) return
+
+    try {
+      setExcluindoAgente(nome)
+
+      const { error } = await supabase
+        .from('monitoria_agente_dias')
+        .delete()
+        .eq('mes', mes)
+        .eq('agente', nome)
+
+      if (error) throw error
+
+      // remove da lista
+      setAgentes((prev) => prev.filter((a) => normKey(a.nome) !== nome))
+
+      // remove do grid (todas as chaves desse agente)
+      setGrid((prev) => {
+        const next = { ...prev }
+        for (const d of dias) {
+          delete next[key(nome, d)]
+        }
+        return next
+      })
+
+      alert('Agente excluído com sucesso.')
+    } catch (err: any) {
+      console.error(err)
+      alert('Erro ao excluir agente: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setExcluindoAgente(null)
+    }
+  }
 
   async function toggle(agenteNome: string, dia: number) {
     const k = key(agenteNome, dia)
     const atual = !!grid[k]
     const proximo = !atual
 
-    // otimista
     setGrid((prev) => ({ ...prev, [k]: proximo }))
     setSalvandoKey(k)
 
@@ -153,13 +245,12 @@ export default function ControleDiarioMonitoriaPage() {
       const email = sess.session?.user?.email || null
 
       if (proximo) {
-        // marcar
         const { error } = await supabase.from('monitoria_agente_dias').upsert(
           [
             {
               mes,
               dia,
-              agente: agenteNome,
+              agente: normKey(agenteNome),
               avaliado: true,
               marcado_por: email,
             },
@@ -168,18 +259,16 @@ export default function ControleDiarioMonitoriaPage() {
         )
         if (error) throw error
       } else {
-        // desmarcar
         const { error } = await supabase
           .from('monitoria_agente_dias')
           .delete()
           .eq('mes', mes)
           .eq('dia', dia)
-          .eq('agente', agenteNome)
+          .eq('agente', normKey(agenteNome))
         if (error) throw error
       }
     } catch (err: any) {
       console.error(err)
-      // rollback
       setGrid((prev) => ({ ...prev, [k]: atual }))
       alert('Erro ao salvar: ' + (err?.message || 'Erro desconhecido'))
     } finally {
@@ -191,7 +280,6 @@ export default function ControleDiarioMonitoriaPage() {
     if (!agentes.length) return alert('Sem agentes para exportar.')
 
     const headers = ['mes', 'dia', 'agente', 'avaliado']
-
     const lines: string[] = []
     lines.push(headers.join(','))
 
@@ -251,6 +339,24 @@ export default function ControleDiarioMonitoriaPage() {
               Checks no mês: <span className="font-extrabold">{totalMarcados}</span>
             </div>
 
+            {/* CADASTRAR AGENTE */}
+            <div className="flex items-center gap-2">
+              <input
+                value={novoAgente}
+                onChange={(e) => setNovoAgente(e.target.value)}
+                placeholder="Cadastrar agente..."
+                className="rounded-lg border border-[#cbd5e1] px-3 py-2 text-sm text-[#0f172a] bg-white w-[260px]"
+              />
+              <button
+                type="button"
+                onClick={cadastrarAgente}
+                disabled={cadastrando}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
+                {cadastrando ? 'Salvando…' : 'Adicionar'}
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -272,7 +378,7 @@ export default function ControleDiarioMonitoriaPage() {
           </div>
         </div>
 
-        {/* TABELA (mensal) */}
+        {/* TABELA */}
         <div className="rounded-2xl bg-[#f1f5f9] p-6 shadow border border-[#cbd5e1]">
           <div className="rounded-2xl bg-white p-4 border border-[#cbd5e1]">
             <div className="overflow-x-auto">
@@ -306,9 +412,21 @@ export default function ControleDiarioMonitoriaPage() {
                       for (const d of dias) if (grid[key(a.nome, d)]) total++
 
                       return (
-                        <tr key={String(a.id)} className="border-t border-[#e2e8f0]">
+                        <tr key={a.nome} className="border-t border-[#e2e8f0]">
                           <td className="sticky left-0 z-10 bg-white py-2 pr-3 font-semibold">
-                            {a.nome}
+                            <div className="flex items-center justify-between gap-3">
+                              <span>{a.nome}</span>
+
+                              <button
+                                type="button"
+                                onClick={() => excluirAgente(a.nome)}
+                                disabled={excluindoAgente === normKey(a.nome)}
+                                className="rounded-lg border border-red-500 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                title="Excluir agente do mês (apaga todos os checks)"
+                              >
+                                {excluindoAgente === normKey(a.nome) ? 'Excluindo…' : 'Excluir'}
+                              </button>
+                            </div>
                           </td>
 
                           {dias.map((d) => {

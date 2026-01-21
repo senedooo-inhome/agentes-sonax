@@ -98,6 +98,46 @@ function getMesAtualInfo() {
   }
 }
 
+/** ✅ Normaliza texto (para comparar e filtrar valores "Não informado" etc.) */
+function normText(s: any) {
+  return String(s ?? '')
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+}
+
+/** ✅ Decide se a empresa é válida para aparecer no TOP */
+function empresaValida(emp: any) {
+  const n = normText(emp)
+  if (!n) return false
+
+  // remove coisas que você citou + variações comuns
+  const blacklist = new Set([
+    'nao informado',
+    'não informado',
+    'nao se aplica',
+    'não se aplica',
+    'n/a',
+    'na',
+    'sem empresa',
+    'sem informacao',
+    'sem informação',
+    'undefined',
+    'null',
+    '-',
+    '--',
+    '0',
+  ])
+
+  if (blacklist.has(n)) return false
+
+  // se tiver só símbolos/espaços
+  if (!/[a-z0-9]/i.test(n)) return false
+
+  return true
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({
     ferias: 0,
@@ -114,7 +154,7 @@ export default function DashboardPage() {
   const [resumoStatus, setResumoStatus] = useState<ResumoStatus[]>([])
 
   const [errosPorAgente, setErrosPorAgente] = useState<ErrosAgenteMap>({})
-  const [errosPorEmpresa, setErrosPorEmpresa] = useState<ErrosEmpresaMap>({}) // ✅ NOVO
+  const [errosPorEmpresa, setErrosPorEmpresa] = useState<ErrosEmpresaMap>({})
   const [mesLabel, setMesLabel] = useState('')
   const [atualizando, setAtualizando] = useState(false)
 
@@ -216,7 +256,7 @@ export default function DashboardPage() {
 
       setPlantoesPorAgente(listaPlantao)
 
-      // 6) Erros clínicas / SAC do mês (agora trazendo empresa também)
+      // 6) Erros clínicas / SAC do mês (trazendo empresa também)
       const { data: errosClinicasData } = await supabase
         .from('erros_agentes')
         .select('id, nicho, data, agente, empresa')
@@ -246,10 +286,14 @@ export default function DashboardPage() {
 
       setErrosPorAgente(Object.fromEntries(top5))
 
-      // ✅ NOVO: TOP 10 empresas com mais erros (mês)
+      // ✅ TOP 10 empresas com mais erros (somente empresas válidas)
       const contadorErrosPorEmpresa: ErrosEmpresaMap = todosErros.reduce((acc: any, item: any) => {
-        const emp = (item.empresa || '').trim() || 'Não informado'
-        acc[emp] = (acc[emp] || 0) + 1
+        const empRaw = item.empresa
+        if (!empresaValida(empRaw)) return acc
+
+        // mantém o "label" original, mas sem espaços sobrando
+        const empLabel = String(empRaw).trim()
+        acc[empLabel] = (acc[empLabel] || 0) + 1
         return acc
       }, {})
 
@@ -292,7 +336,7 @@ export default function DashboardPage() {
     }
   }
 
-  // ======== GRÁFICO: TOP 10 EMPRESAS (NOVO) =========
+  // ======== GRÁFICO: TOP 10 EMPRESAS =========
   const empresaTopBarData = useMemo(
     () => ({
       labels: Object.keys(errosPorEmpresa),
@@ -378,32 +422,25 @@ export default function DashboardPage() {
           <Card titulo="Folgas (status atual)" valor={stats.folgas} />
           <Card titulo="Erros Clínicas no mês" valor={stats.errosClinicas} corValor="#ef4444" />
           <Card titulo="Erros SAC no mês" valor={stats.errosSac} corValor="#ef4444" />
-          {/* ✅ ALTERADO */}
           <Card titulo="Ligações ativas Clínicas no mês" valor={stats.ligacoesClinicas} />
-          {/* ✅ ALTERADO */}
           <Card titulo="Ligações ativas SAC no mês" valor={stats.ligacoesSac} />
           <Card titulo="Total de Agentes" valor={stats.totalAgentes} destaque />
         </section>
 
         {/* GRÁFICOS */}
         <section className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* ✅ TROCOU: Status -> Empresas Top 10 */}
           <div className="bg-white border border-gray-200 rounded-2xl shadow p-6 h-[360px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Empresas com mais erros (Top 10)
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Empresas com mais erros (Top 10)</h2>
             <div className="h-[280px]">
               <Bar data={empresaTopBarData} options={empresaTopBarOptions} />
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              *Quantidade de erros no mês (barras em amarelo premium).
+              *Somente empresas válidas (remove “Não informado” e “Não se aplica”).
             </p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-2xl shadow p-6 h-[360px]">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Top 5 Agentes com Mais Erros (Mês Atual)
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top 5 Agentes com Mais Erros (Mês Atual)</h2>
             <div className="h-[280px]">
               <Bar data={topBarData} options={topBarOptions} />
             </div>

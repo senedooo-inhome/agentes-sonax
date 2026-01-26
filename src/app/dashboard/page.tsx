@@ -112,7 +112,6 @@ function empresaValida(emp: any) {
   const n = normText(emp)
   if (!n) return false
 
-  // remove coisas que você citou + variações comuns
   const blacklist = new Set([
     'nao informado',
     'não informado',
@@ -131,11 +130,28 @@ function empresaValida(emp: any) {
   ])
 
   if (blacklist.has(n)) return false
-
-  // se tiver só símbolos/espaços
   if (!/[a-z0-9]/i.test(n)) return false
-
   return true
+}
+
+// =======================
+// ✅ NOVO: Quadro feriado
+// =======================
+type Empresa = { id: number; nome: string }
+type OperacaoRegistro = {
+  id: number
+  data: string // YYYY-MM-DD
+  empresa_id: number
+  status_operacao: string | null // "Sim" | "Não" (ou null)
+  feriado: string | null
+  observacao: string | null
+  responsavel: string | null
+  quem_adicionou: string | null
+  created_at?: string | null
+}
+
+function hojeISO() {
+  return toISODateLocal(new Date())
 }
 
 export default function DashboardPage() {
@@ -150,7 +166,6 @@ export default function DashboardPage() {
     totalAgentes: 0,
   })
 
-  // (mantido, mas não é mais exibido no gráfico principal)
   const [resumoStatus, setResumoStatus] = useState<ResumoStatus[]>([])
 
   const [errosPorAgente, setErrosPorAgente] = useState<ErrosAgenteMap>({})
@@ -158,16 +173,110 @@ export default function DashboardPage() {
   const [mesLabel, setMesLabel] = useState('')
   const [atualizando, setAtualizando] = useState(false)
 
-  // ✅ PLANTÕES (mês)
   const [plantoesPorAgente, setPlantoesPorAgente] = useState<PlantaoLinha[]>([])
-
-  // ✅ NOMES dos agentes em férias
   const [agentesFerias, setAgentesFerias] = useState<string[]>([])
+
+  // ✅ NOVO: dados do quadro feriado
+  const [empresas, setEmpresas] = useState<Empresa[]>([])
+  const [proximoFeriado, setProximoFeriado] = useState<{ data: string; feriado: string } | null>(null)
+  const [operacaoMap, setOperacaoMap] = useState<Record<number, 'Sim' | 'Não' | null>>({})
+  const [salvandoEmpresaId, setSalvandoEmpresaId] = useState<number | null>(null)
 
   useEffect(() => {
     carregarDashboard()
+    carregarQuadroFeriado()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  async function carregarQuadroFeriado() {
+    try {
+      // 1) lista de empresas
+      const { data: empresasData, error: eEmp } = await supabase
+        .from('empresas')
+        .select('id, nome')
+        .order('nome', { ascending: true })
+      if (eEmp) throw eEmp
+      setEmpresas((empresasData ?? []) as Empresa[])
+
+      // 2) descobre o "próximo feriado" baseado na tabela operacao_empresas (primeira data >= hoje)
+      const hoje = hojeISO()
+      const { data: proxData, error: eProx } = await supabase
+        .from('operacao_empresas')
+        .select('data, feriado')
+        .gte('data', hoje)
+        .order('data', { ascending: true })
+        .limit(1)
+
+      if (eProx) throw eProx
+
+      const prox = (proxData && proxData[0]) ? (proxData[0] as any) : null
+      if (!prox?.data) {
+        // sem feriado cadastrado futuro
+        setProximoFeriado(null)
+        setOperacaoMap({})
+        return
+      }
+
+      const dataFeriado = String(prox.data)
+      const nomeFeriado = String(prox.feriado ?? 'Feriado')
+
+      setProximoFeriado({ data: dataFeriado, feriado: nomeFeriado })
+
+      // 3) pega status_operacao de TODAS as empresas para essa data
+      const { data: ops, error: eOps } = await supabase
+        .from('operacao_empresas')
+        .select('empresa_id, status_operacao')
+        .eq('data', dataFeriado)
+
+      if (eOps) throw eOps
+
+      const map: Record<number, 'Sim' | 'Não' | null> = {}
+      ;(ops ?? []).forEach((r: any) => {
+        const empresaId = Number(r.empresa_id)
+        const st = String(r.status_operacao ?? '').trim()
+        map[empresaId] = st === 'Sim' ? 'Sim' : st === 'Não' ? 'Não' : null
+      })
+      setOperacaoMap(map)
+    } catch (e: any) {
+      console.error(e)
+      alert('Erro ao carregar quadro do feriado: ' + (e?.message ?? String(e)))
+    }
+  }
+
+  async function marcarOperacao(empresaId: number, status: 'Sim' | 'Não') {
+    if (!proximoFeriado?.data) {
+      return alert('Nenhum feriado futuro encontrado na tabela operacao_empresas.')
+    }
+
+    setSalvandoEmpresaId(empresaId)
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const email = sess.session?.user?.email ?? null
+
+      // ✅ upsert por (data, empresa_id) — precisa do UNIQUE que passei acima
+      const { error } = await supabase.from('operacao_empresas').upsert(
+        [
+          {
+            data: proximoFeriado.data,
+            empresa_id: empresaId,
+            status_operacao: status,
+            feriado: proximoFeriado.feriado,
+            quem_adicionou: email,
+          },
+        ],
+        { onConflict: 'data,empresa_id' }
+      )
+
+      if (error) throw error
+
+      setOperacaoMap((prev) => ({ ...prev, [empresaId]: status }))
+    } catch (e: any) {
+      console.error(e)
+      alert('Erro ao salvar operação: ' + (e?.message ?? String(e)))
+    } finally {
+      setSalvandoEmpresaId(null)
+    }
+  }
 
   async function carregarDashboard() {
     setAtualizando(true)
@@ -175,16 +284,13 @@ export default function DashboardPage() {
       const { inicio, fim, label } = getMesAtualInfo()
       setMesLabel(label)
 
-      // 1) Total de agentes
       const { count: totalAgentes } = await supabase.from('agentes').select('*', { count: 'exact', head: true })
 
-      // 2) Férias / Folgas (status atual) + nomes
       const [{ count: ferias }, { count: folgas }] = await Promise.all([
         supabase.from('agentes').select('*', { count: 'exact', head: true }).eq('status', 'Férias'),
         supabase.from('agentes').select('*', { count: 'exact', head: true }).eq('status', 'Folga'),
       ])
 
-      // ✅ nomes em férias
       const { data: feriasNomesData, error: feriasNomesErr } = await supabase
         .from('agentes')
         .select('nome')
@@ -194,14 +300,12 @@ export default function DashboardPage() {
       if (feriasNomesErr) throw feriasNomesErr
       setAgentesFerias((feriasNomesData || []).map((x: any) => x.nome).filter(Boolean))
 
-      // 3) Atestados do mês
       const { count: atestados } = await supabase
         .from('atestados')
         .select('*', { count: 'exact', head: true })
         .gte('data', inicio)
         .lte('data', fim)
 
-      // 4) Resumo status (presencas.tipo) — mantido
       const { data: presencasMes } = await supabase
         .from('presencas')
         .select('tipo')
@@ -234,7 +338,6 @@ export default function DashboardPage() {
       })
       setResumoStatus(resumo)
 
-      // ✅ 5) Plantões do mês por agente (join com agentes)
       const { data: plantoesData, error: ePlantao } = await supabase
         .from('presencas')
         .select(`tipo, agentes ( nome )`)
@@ -256,7 +359,6 @@ export default function DashboardPage() {
 
       setPlantoesPorAgente(listaPlantao)
 
-      // 6) Erros clínicas / SAC do mês (trazendo empresa também)
       const { data: errosClinicasData } = await supabase
         .from('erros_agentes')
         .select('id, nicho, data, agente, empresa')
@@ -273,7 +375,6 @@ export default function DashboardPage() {
 
       const todosErros = [...(errosClinicasData || []), ...(errosSacData || [])]
 
-      // ✅ TOP 5 por agente (mantido)
       const contadorErrosPorAgente: ErrosAgenteMap = todosErros.reduce((acc: any, item: any) => {
         const nome = item.agente || 'Não informado'
         acc[nome] = (acc[nome] || 0) + 1
@@ -286,12 +387,9 @@ export default function DashboardPage() {
 
       setErrosPorAgente(Object.fromEntries(top5))
 
-      // ✅ TOP 10 empresas com mais erros (somente empresas válidas)
       const contadorErrosPorEmpresa: ErrosEmpresaMap = todosErros.reduce((acc: any, item: any) => {
         const empRaw = item.empresa
         if (!empresaValida(empRaw)) return acc
-
-        // mantém o "label" original, mas sem espaços sobrando
         const empLabel = String(empRaw).trim()
         acc[empLabel] = (acc[empLabel] || 0) + 1
         return acc
@@ -303,7 +401,6 @@ export default function DashboardPage() {
 
       setErrosPorEmpresa(Object.fromEntries(top10Emp))
 
-      // 7) Ligações ativas clínicas / SAC do mês
       const { count: ligClinicas } = await supabase
         .from('ligacoes_ativas')
         .select('*', { count: 'exact', head: true })
@@ -318,7 +415,6 @@ export default function DashboardPage() {
         .gte('data', inicio)
         .lte('data', fim)
 
-      // 8) Cards
       setStats({
         ferias: ferias || 0,
         atestados: atestados || 0,
@@ -336,7 +432,6 @@ export default function DashboardPage() {
     }
   }
 
-  // ======== GRÁFICO: TOP 10 EMPRESAS =========
   const empresaTopBarData = useMemo(
     () => ({
       labels: Object.keys(errosPorEmpresa),
@@ -344,7 +439,7 @@ export default function DashboardPage() {
         {
           label: 'Quantidade de erros (mês)',
           data: Object.values(errosPorEmpresa),
-          backgroundColor: '#F5C542', // ✅ amarelo premium
+          backgroundColor: '#F5C542',
           borderRadius: 10,
         },
       ],
@@ -362,7 +457,6 @@ export default function DashboardPage() {
     },
   }
 
-  // ======== GRÁFICO: TOP 5 ERROS (AGENTES) =========
   const topBarData = useMemo(
     () => ({
       labels: Object.keys(errosPorAgente),
@@ -388,8 +482,16 @@ export default function DashboardPage() {
     },
   }
 
-  // ✅ TOP 10 plantões
   const topPlantoes = useMemo(() => plantoesPorAgente.slice(0, 10), [plantoesPorAgente])
+
+  const simCount = useMemo(
+    () => empresas.filter((e) => operacaoMap[e.id] === 'Sim').length,
+    [empresas, operacaoMap]
+  )
+  const naoCount = useMemo(
+    () => empresas.filter((e) => (operacaoMap[e.id] ?? 'Não') === 'Não').length,
+    [empresas, operacaoMap]
+  )
 
   return (
     <main className="w-full min-h-screen bg-[#f5f6f7]">
@@ -406,7 +508,10 @@ export default function DashboardPage() {
           </div>
 
           <button
-            onClick={carregarDashboard}
+            onClick={() => {
+              carregarDashboard()
+              carregarQuadroFeriado()
+            }}
             className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-50"
             disabled={atualizando}
             title="Atualizar dados"
@@ -444,6 +549,119 @@ export default function DashboardPage() {
             <div className="h-[280px]">
               <Bar data={topBarData} options={topBarOptions} />
             </div>
+          </div>
+        </section>
+
+        {/* ✅ NOVO QUADRO (abaixo dos dois gráficos) */}
+        <section className="mt-6">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow p-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Empresas que vai e não vai ter atendimento no próximo feriado{' '}
+                  <span className="text-[#2687e2] font-extrabold">
+                    (
+                    {proximoFeriado
+                      ? `${proximoFeriado.feriado} — ${proximoFeriado.data}`
+                      : 'sem feriado futuro cadastrado'}
+                    )
+                  </span>
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Fonte: <strong>empresas</strong> + <strong>operacao_empresas</strong> (status_operacao = “Sim/Não”).
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={carregarQuadroFeriado}
+                className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+              >
+                Recarregar quadro
+              </button>
+            </div>
+
+            {!proximoFeriado ? (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Não encontrei nenhum feriado futuro em <strong>operacao_empresas</strong> (data &gt;= hoje).
+                <br />
+                Cadastre pelo menos 1 linha (com <strong>data</strong> e <strong>feriado</strong>) e o quadro volta a funcionar.
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 overflow-x-auto">
+                  <div className="min-w-[780px] rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="grid grid-cols-3">
+                      <div className="p-4 bg-[#2687e2] text-white font-extrabold">EMPRESAS</div>
+                      <div className="p-4 bg-[#16a34a] text-white font-extrabold text-center">SIM ✅</div>
+                      <div className="p-4 bg-[#ef4444] text-white font-extrabold text-center">NÃO ❌</div>
+                    </div>
+
+                    <div className="divide-y">
+                      {empresas.length === 0 ? (
+                        <div className="p-4 text-sm text-gray-600">Nenhuma empresa encontrada em empresas.</div>
+                      ) : (
+                        empresas.map((emp) => {
+                          const st = operacaoMap[emp.id] ?? null
+                          const sim = st === 'Sim'
+                          const nao = st === 'Não' || st == null // default: Não
+                          const salvando = salvandoEmpresaId === emp.id
+
+                          return (
+                            <div key={emp.id} className="grid grid-cols-3 items-center">
+                              <div className="p-4 text-sm font-semibold text-gray-900 truncate">{emp.nome}</div>
+
+                              <div className="p-4 flex justify-center">
+                                <button
+                                  type="button"
+                                  disabled={salvando}
+                                  onClick={() => marcarOperacao(emp.id, 'Sim')}
+                                  className={`h-10 w-10 rounded-full border flex items-center justify-center text-lg ${
+                                    sim
+                                      ? 'bg-[#16a34a] border-[#16a34a] text-white'
+                                      : 'bg-white border-gray-200 text-gray-400 hover:text-[#16a34a]'
+                                  } ${salvando ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  title="Vai ter atendimento"
+                                >
+                                  ✓
+                                </button>
+                              </div>
+
+                              <div className="p-4 flex justify-center">
+                                <button
+                                  type="button"
+                                  disabled={salvando}
+                                  onClick={() => marcarOperacao(emp.id, 'Não')}
+                                  className={`h-10 w-10 rounded-full border flex items-center justify-center text-lg ${
+                                    nao
+                                      ? 'bg-[#ef4444] border-[#ef4444] text-white'
+                                      : 'bg-white border-gray-200 text-gray-400 hover:text-[#ef4444]'
+                                  } ${salvando ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  title="Não vai ter atendimento"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">SIM (vai ter atendimento)</p>
+                    <p className="text-2xl font-extrabold text-[#16a34a]">{simCount}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">NÃO (não vai ter atendimento)</p>
+                    <p className="text-2xl font-extrabold text-[#ef4444]">{naoCount}</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
 

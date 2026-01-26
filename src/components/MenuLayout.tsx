@@ -47,19 +47,17 @@ const menuLinks = [
     sub: [{ href: '/ura/relatorio', label: 'Relatório de Operação' }],
   },
 
-  // ✅ MONITORIA (APENAS GRUPO / SEM LINK)
-{
-  label: 'Monitoria',
-  sub: [
-    { href: '/monitoria-qualidade/controle-diario', label: 'Controle Diário' },
-    { href: '/monitoria-qualidade/controle-drive', label: 'Controle do Drive' },
-    { href: '/monitoria-qualidade', label: 'Monitoria de Qualidade' },
-  { href: '/qualidade-registros', label: 'Avaliação & Reclamações' },
-  { href: '/monitoria-qualidade/elogios', label: 'Elogios' },
-  { href: '/monitoria-qualidade/nps-solicitado', label: 'NPS Solicitado' },
-],
-},
-
+  {
+    label: 'Monitoria',
+    sub: [
+      { href: '/monitoria-qualidade/controle-diario', label: 'Controle Diário' },
+      { href: '/monitoria-qualidade/controle-drive', label: 'Controle do Drive' },
+      { href: '/monitoria-qualidade', label: 'Monitoria de Qualidade' },
+      { href: '/qualidade-registros', label: 'Avaliação & Reclamações' },
+      { href: '/monitoria-qualidade/elogios', label: 'Elogios' },
+      { href: '/monitoria-qualidade/nps-solicitado', label: 'NPS Solicitado' },
+    ],
+  },
 
   { href: '/login?logout=1', label: 'Sair', color: 'gray' },
 ] as const
@@ -70,17 +68,16 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
 
   // ✅ Esconde menu em rotas específicas (inclui subrotas)
   const esconderMenu = useMemo(() => {
-    const hiddenPrefixes = ['/campanhas', '/login']
+    // ✅ ADD AQUI
+    const hiddenPrefixes = ['/campanhas', '/login', '/escala-feriado']
     return hiddenPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))
   }, [pathname])
 
-  // ✅ helper: rota ativa (ex: /monitoria-qualidade ativa também em /monitoria-qualidade/registros)
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
     return pathname === href || pathname.startsWith(href + '/')
   }
 
-  // ✅ abre automaticamente o dropdown do grupo quando entra em qualquer subrota
   useEffect(() => {
     const match = menuLinks.find((link: any) => link.sub?.some((sub: any) => isActive(sub.href)))
     if (match) setOpenDropdown(match.label)
@@ -96,7 +93,6 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
             const temSub = !!link.sub
             const isGray = link.color === 'gray'
 
-            // pai pode não ter href (grupo)
             const ativoPai = link.href ? isActive(link.href) : false
             const ativoAlgumSub = temSub ? link.sub.some((s: any) => isActive(s.href)) : false
 
@@ -118,7 +114,6 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
                       {link.label}
                     </Link>
                   ) : (
-                    // ✅ grupo sem link
                     <div className="block w-full px-3 py-2 rounded-md text-sm font-bold uppercase tracking-wide text-white/95 bg-[#1f6bb6]">
                       {link.label}
                     </div>

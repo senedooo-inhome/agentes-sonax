@@ -187,8 +187,12 @@ export default function MonitoriaElogiosPage() {
     }
   }
 
+  // ✅ ATUALIZADO: exportação CSV em colunas no Excel (Brasil)
   function exportarCSV() {
     if (!relatorio.length) return alert('Sem dados para exportar.')
+
+    // Excel BR geralmente usa ; como separador
+    const SEP = ';'
 
     const headers = [
       'data',
@@ -205,17 +209,26 @@ export default function MonitoriaElogiosPage() {
     ]
 
     const escape = (v: any) => {
-      const s = String(v ?? '')
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+      let s = String(v ?? '')
+
+      // normaliza quebras de linha
+      s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+      // se tiver separador, aspas ou quebra de linha => envolve com aspas e duplica aspas internas
+      if (s.includes(SEP) || s.includes('"') || s.includes('\n')) {
+        s = `"${s.replace(/"/g, '""')}"`
+      }
       return s
     }
 
     const lines = [
-      headers.join(','),
-      ...relatorio.map((r) => headers.map((h) => escape((r as any)[h])).join(',')),
+      headers.join(SEP),
+      ...relatorio.map((r) => headers.map((h) => escape((r as any)[h])).join(SEP)),
     ]
 
-    const csv = lines.join('\n')
+    // BOM para o Excel abrir UTF-8 corretamente (acentos)
+    const csv = '\uFEFF' + lines.join('\r\n')
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -428,7 +441,6 @@ export default function MonitoriaElogiosPage() {
             <table className="w-full text-sm text-[#0f172a] table-fixed">
               <thead className="bg-[#f8fafc] border-b border-[#e2e8f0]">
                 <tr className="text-left">
-                  {/* Larguras equilibradas para caber tudo */}
                   <th className="py-3 px-3 font-extrabold w-[92px]">Data</th>
                   <th className="py-3 px-3 font-extrabold w-[70px]">Nicho</th>
                   <th className="py-3 px-3 font-extrabold w-[150px]">Nome</th>

@@ -88,9 +88,74 @@ export default function ControleDiarioMonitoriaPage() {
   // ✅ excluir agente
   const [excluindoAgente, setExcluindoAgente] = useState<string | null>(null)
 
+  /**
+   * ✅ NOVO: se o mês atual não tiver nenhum agente cadastrado,
+   * copia automaticamente os agentes do último mês anterior que tiver registros
+   * e cria um registro base no mês atual (dia 1, avaliado=false) para cada agente.
+   */
+  async function garantirAgentesNoMesAtual() {
+    // 1) checa se já existe algum agente no mês atual
+    const { data: atual, error: errAtual } = await supabase
+      .from('monitoria_agente_dias')
+      .select('agente')
+      .eq('mes', mes)
+      .not('agente', 'is', null)
+      .limit(1)
+
+    if (errAtual) throw errAtual
+    if ((atual ?? []).length > 0) return // já tem agente no mês, ok
+
+    // 2) busca agentes do mês anterior (ou último mês com dados)
+    // Como mes é 'YYYY-MM', comparações lexicográficas funcionam.
+    const { data: anteriores, error: errAnt } = await supabase
+      .from('monitoria_agente_dias')
+      .select('mes, agente')
+      .lt('mes', mes)
+      .not('agente', 'is', null)
+      .order('mes', { ascending: false })
+      .limit(500)
+
+    if (errAnt) throw errAnt
+
+    if (!anteriores || anteriores.length === 0) {
+      // não há histórico; deixa vazio mesmo
+      return
+    }
+
+    // pega o "último mês" existente e só copia dele (evita puxar agentes antigos demais)
+    const ultimoMes = String((anteriores[0] as any).mes || '')
+    const agentesUltimoMes = anteriores
+      .filter((r: any) => String(r.mes) === ultimoMes)
+      .map((r: any) => normKey(String(r.agente || '')))
+      .filter(Boolean)
+
+    const uniq = Array.from(new Set(agentesUltimoMes))
+    if (!uniq.length) return
+
+    const { data: sess } = await supabase.auth.getSession()
+    const email = sess.session?.user?.email || null
+
+    // cria registros base no mês atual
+    const payload = uniq.map((nome) => ({
+      mes,
+      dia: 1,
+      agente: nome,
+      avaliado: false,
+      marcado_por: email,
+    }))
+
+    const { error: errUpsert } = await supabase.from('monitoria_agente_dias').upsert(payload, {
+      onConflict: 'mes,dia,agente',
+    })
+    if (errUpsert) throw errUpsert
+  }
+
   async function carregarAgentes() {
     try {
       setCarregandoAgentes(true)
+
+      // ✅ NOVO: garante que o mês atual tenha agentes (copiando do último mês, se preciso)
+      await garantirAgentesNoMesAtual()
 
       const { data, error } = await supabase
         .from('monitoria_agente_dias')
@@ -276,33 +341,38 @@ export default function ControleDiarioMonitoriaPage() {
     }
   }
 
+  // ✅ ATUALIZADO: CSV em colunas no Excel BR (; + BOM)
   function exportarCSV() {
     if (!agentes.length) return alert('Sem agentes para exportar.')
 
+    const SEP = ';'
     const headers = ['mes', 'dia', 'agente', 'avaliado']
     const lines: string[] = []
-    lines.push(headers.join(','))
+    lines.push(headers.join(SEP))
 
     const escape = (v: any) => {
-      const s = String(v ?? '')
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+      let s = String(v ?? '')
+      s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      if (s.includes(SEP) || s.includes('"') || s.includes('\n')) {
+        s = `"${s.replace(/"/g, '""')}"`
+      }
       return s
     }
 
-    for (const a of agentes) {
+    for (const ag of agentes) {
       for (const d of dias) {
-        const checked = !!grid[key(a.nome, d)]
+        const checked = !!grid[key(ag.nome, d)]
         const row = {
           mes,
           dia: d,
-          agente: a.nome,
+          agente: ag.nome,
           avaliado: checked ? 'Sim' : 'Não',
         }
-        lines.push(headers.map((h) => escape((row as any)[h])).join(','))
+        lines.push(headers.map((h) => escape((row as any)[h])).join(SEP))
       }
     }
 
-    const csv = lines.join('\n')
+    const csv = '\uFEFF' + lines.join('\r\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -407,30 +477,30 @@ export default function ControleDiarioMonitoriaPage() {
                       </td>
                     </tr>
                   ) : (
-                    agentes.map((a) => {
+                    agentes.map((ag) => {
                       let total = 0
-                      for (const d of dias) if (grid[key(a.nome, d)]) total++
+                      for (const d of dias) if (grid[key(ag.nome, d)]) total++
 
                       return (
-                        <tr key={a.nome} className="border-t border-[#e2e8f0]">
+                        <tr key={ag.nome} className="border-t border-[#e2e8f0]">
                           <td className="sticky left-0 z-10 bg-white py-2 pr-3 font-semibold">
                             <div className="flex items-center justify-between gap-3">
-                              <span>{a.nome}</span>
+                              <span>{ag.nome}</span>
 
                               <button
                                 type="button"
-                                onClick={() => excluirAgente(a.nome)}
-                                disabled={excluindoAgente === normKey(a.nome)}
+                                onClick={() => excluirAgente(ag.nome)}
+                                disabled={excluindoAgente === normKey(ag.nome)}
                                 className="rounded-lg border border-red-500 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                                 title="Excluir agente do mês (apaga todos os checks)"
                               >
-                                {excluindoAgente === normKey(a.nome) ? 'Excluindo…' : 'Excluir'}
+                                {excluindoAgente === normKey(ag.nome) ? 'Excluindo…' : 'Excluir'}
                               </button>
                             </div>
                           </td>
 
                           {dias.map((d) => {
-                            const k = key(a.nome, d)
+                            const k = key(ag.nome, d)
                             const checked = !!grid[k]
                             const saving = salvandoKey === k
 
@@ -440,7 +510,7 @@ export default function ControleDiarioMonitoriaPage() {
                                   <input
                                     type="checkbox"
                                     checked={checked}
-                                    onChange={() => toggle(a.nome, d)}
+                                    onChange={() => toggle(ag.nome, d)}
                                     disabled={saving}
                                     className="h-4 w-4 accent-emerald-600"
                                   />

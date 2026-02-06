@@ -67,35 +67,37 @@ function toISODateLocal(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-function getMesAtualInfo() {
-  const hoje = new Date()
-  const ano = hoje.getFullYear()
-  const mesIndex = hoje.getMonth()
+const MESES = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+]
+
+function getMesInfo(ano: number, mesIndex: number) {
   const primeiroDia = new Date(ano, mesIndex, 1)
   const ultimoDia = new Date(ano, mesIndex + 1, 0)
-
-  const meses = [
-    'janeiro',
-    'fevereiro',
-    'março',
-    'abril',
-    'maio',
-    'junho',
-    'julho',
-    'agosto',
-    'setembro',
-    'outubro',
-    'novembro',
-    'dezembro',
-  ]
 
   return {
     ano,
     mesIndex,
-    label: `${meses[mesIndex]} de ${ano}`,
+    label: `${MESES[mesIndex]} de ${ano}`,
     inicio: toISODateLocal(primeiroDia),
     fim: toISODateLocal(ultimoDia),
   }
+}
+
+function getMesAtualInfo() {
+  const hoje = new Date()
+  return getMesInfo(hoje.getFullYear(), hoje.getMonth())
 }
 
 /** ✅ Normaliza texto (para comparar e filtrar valores "Não informado" etc.) */
@@ -155,6 +157,12 @@ function hojeISO() {
 }
 
 export default function DashboardPage() {
+  const mesAtual = getMesAtualInfo()
+
+  // ✅ NOVO: filtros (mês/ano)
+  const [filtroAno, setFiltroAno] = useState<number>(mesAtual.ano)
+  const [filtroMes, setFiltroMes] = useState<number>(mesAtual.mesIndex)
+
   const [stats, setStats] = useState<Stats>({
     ferias: 0,
     atestados: 0,
@@ -183,10 +191,15 @@ export default function DashboardPage() {
   const [salvandoEmpresaId, setSalvandoEmpresaId] = useState<number | null>(null)
 
   useEffect(() => {
-    carregarDashboard()
     carregarQuadroFeriado()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ✅ NOVO: recarrega dashboard quando mudar mês/ano
+  useEffect(() => {
+    carregarDashboard()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroAno, filtroMes])
 
   async function carregarQuadroFeriado() {
     try {
@@ -209,7 +222,7 @@ export default function DashboardPage() {
 
       if (eProx) throw eProx
 
-      const prox = (proxData && proxData[0]) ? (proxData[0] as any) : null
+      const prox = proxData && proxData[0] ? (proxData[0] as any) : null
       if (!prox?.data) {
         // sem feriado cadastrado futuro
         setProximoFeriado(null)
@@ -253,7 +266,7 @@ export default function DashboardPage() {
       const { data: sess } = await supabase.auth.getSession()
       const email = sess.session?.user?.email ?? null
 
-      // ✅ upsert por (data, empresa_id) — precisa do UNIQUE que passei acima
+      // ✅ upsert por (data, empresa_id)
       const { error } = await supabase.from('operacao_empresas').upsert(
         [
           {
@@ -281,7 +294,7 @@ export default function DashboardPage() {
   async function carregarDashboard() {
     setAtualizando(true)
     try {
-      const { inicio, fim, label } = getMesAtualInfo()
+      const { inicio, fim, label } = getMesInfo(filtroAno, filtroMes)
       setMesLabel(label)
 
       const { count: totalAgentes } = await supabase.from('agentes').select('*', { count: 'exact', head: true })
@@ -484,14 +497,21 @@ export default function DashboardPage() {
 
   const topPlantoes = useMemo(() => plantoesPorAgente.slice(0, 10), [plantoesPorAgente])
 
-  const simCount = useMemo(
-    () => empresas.filter((e) => operacaoMap[e.id] === 'Sim').length,
-    [empresas, operacaoMap]
-  )
+  const simCount = useMemo(() => empresas.filter((e) => operacaoMap[e.id] === 'Sim').length, [empresas, operacaoMap])
   const naoCount = useMemo(
     () => empresas.filter((e) => (operacaoMap[e.id] ?? 'Não') === 'Não').length,
     [empresas, operacaoMap]
   )
+
+  // ✅ NOVO: opções de anos (ex.: do ano atual - 4 até o ano atual + 1)
+  const anosOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    const start = currentYear - 4
+    const end = currentYear + 1
+    const arr: number[] = []
+    for (let y = start; y <= end; y++) arr.push(y)
+    return arr
+  }, [])
 
   return (
     <main className="w-full min-h-screen bg-[#f5f6f7]">
@@ -507,17 +527,48 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              carregarDashboard()
-              carregarQuadroFeriado()
-            }}
-            className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-50"
-            disabled={atualizando}
-            title="Atualizar dados"
-          >
-            {atualizando ? 'Atualizando…' : 'Atualizar'}
-          </button>
+          {/* ✅ NOVO: filtros de mês/ano + botão atualizar */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <select
+                value={filtroMes}
+                onChange={(e) => setFiltroMes(Number(e.target.value))}
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700"
+                aria-label="Selecionar mês"
+              >
+                {MESES.map((m, idx) => (
+                  <option key={m} value={idx}>
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filtroAno}
+                onChange={(e) => setFiltroAno(Number(e.target.value))}
+                className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700"
+                aria-label="Selecionar ano"
+              >
+                {anosOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={() => {
+                carregarDashboard()
+                carregarQuadroFeriado()
+              }}
+              className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white disabled:opacity-50"
+              disabled={atualizando}
+              title="Atualizar dados"
+            >
+              {atualizando ? 'Atualizando…' : 'Atualizar'}
+            </button>
+          </div>
         </header>
 
         {/* CARDS */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { Calendar, Building2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 
 type Empresa = { id: number; nome: string }
 
@@ -15,11 +16,16 @@ function hojeISO() {
   return toISODateLocal(new Date())
 }
 
+// Formatar data de YYYY-MM-DD para DD/MM/YYYY
+function formatarData(dataISO: string) {
+  const [y, m, d] = dataISO.split('-')
+  return `${d}/${m}/${y}`
+}
+
 export default function EscalaFeriadoEmpresas() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [proximoFeriado, setProximoFeriado] = useState<{ data: string; feriado: string } | null>(null)
   const [operacaoMap, setOperacaoMap] = useState<Record<number, 'Sim' | 'Não' | null>>({})
-  const [salvandoEmpresaId, setSalvandoEmpresaId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -82,153 +88,224 @@ export default function EscalaFeriadoEmpresas() {
     }
   }
 
-  async function marcarOperacao(empresaId: number, status: 'Sim' | 'Não') {
-    if (!proximoFeriado?.data) return alert('Nenhum feriado futuro encontrado.')
+  const empresasFuncionam = useMemo(
+    () => empresas.filter((e) => operacaoMap[e.id] === 'Sim'),
+    [empresas, operacaoMap]
+  )
 
-    setSalvandoEmpresaId(empresaId)
-    try {
-      const { data: sess } = await supabase.auth.getSession()
-      const email = sess.session?.user?.email ?? null
+  const empresasNaoFuncionam = useMemo(
+    () => empresas.filter((e) => (operacaoMap[e.id] ?? 'Não') === 'Não'),
+    [empresas, operacaoMap]
+  )
 
-      const { error } = await supabase.from('operacao_empresas').upsert(
-        [
-          {
-            data: proximoFeriado.data,
-            empresa_id: empresaId,
-            status_operacao: status,
-            feriado: proximoFeriado.feriado,
-            quem_adicionou: email,
-          },
-        ],
-        { onConflict: 'data,empresa_id' }
-      )
-      if (error) throw error
-
-      setOperacaoMap((prev) => ({ ...prev, [empresaId]: status }))
-    } catch (e: any) {
-      console.error(e)
-      alert('Erro ao salvar: ' + (e?.message ?? String(e)))
-    } finally {
-      setSalvandoEmpresaId(null)
-    }
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl shadow border border-gray-200 p-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando informações do feriado...</p>
+        </div>
+      </div>
+    )
   }
 
-  const simCount = useMemo(
-    () => empresas.filter((e) => operacaoMap[e.id] === 'Sim').length,
-    [empresas, operacaoMap]
-  )
-  const naoCount = useMemo(
-    () => empresas.filter((e) => (operacaoMap[e.id] ?? 'Não') === 'Não').length,
-    [empresas, operacaoMap]
-  )
+  if (!proximoFeriado) {
+    return (
+      <div className="bg-white rounded-2xl shadow border border-gray-200 p-8">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Nenhum feriado futuro encontrado</h2>
+          <p className="text-gray-600 mb-4">
+            Não encontrei nenhum feriado cadastrado em <strong>operacao_empresas</strong> com data maior ou igual a hoje.
+          </p>
+          <button
+            type="button"
+            onClick={carregar}
+            className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl shadow p-6">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            Empresas que vai e não vai ter atendimento no próximo feriado{' '}
-            <span className="text-[#2687e2] font-extrabold">
-              (
-              {proximoFeriado
-                ? `${proximoFeriado.feriado} — ${proximoFeriado.data}`
-                : 'sem feriado futuro cadastrado'}
-              )
-            </span>
+    <div className="space-y-6">
+      {/* Info do Feriado */}
+      <div className="bg-white rounded-2xl shadow border border-gray-200 p-6">
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <Calendar className="h-6 w-6 text-blue-600" />
+          <h2 className="text-2xl font-bold text-gray-900">
+            {proximoFeriado.feriado}
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            *Use os botões ✅/❌ para marcar. (✅ = Sim / ❌ = Não)
-          </p>
         </div>
-
-        <button
-          type="button"
-          onClick={carregar}
-          className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-        >
-          {loading ? 'Carregando…' : 'Recarregar'}
-        </button>
+        <p className="text-center text-lg text-gray-600">
+          📅 {formatarData(proximoFeriado.data)}
+        </p>
       </div>
 
-      {!proximoFeriado ? (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          Não encontrei nenhum feriado futuro em <strong>operacao_empresas</strong> (data &gt;= hoje).
+      {/* Cards Grid - Sempre lado a lado */}
+      <div className="grid grid-cols-2 gap-4 sm:gap-6">
+        {/* Empresas que FUNCIONAM */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow border-2 border-green-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-3 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="bg-white/20 backdrop-blur-sm p-1.5 sm:p-2 rounded-lg">
+                <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-xl font-bold text-white">
+                  Funcionam
+                </h3>
+                <p className="text-green-50 text-xs sm:text-sm">
+                  {empresasFuncionam.length} {empresasFuncionam.length === 1 ? 'empresa' : 'empresas'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 sm:p-6 space-y-3 sm:space-y-4 max-h-[500px] sm:max-h-[600px] overflow-y-auto">
+            {empresasFuncionam.length === 0 ? (
+              <div className="text-center py-8 sm:py-12">
+                <Building2 className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mx-auto mb-3" />
+                <p className="text-xs sm:text-sm text-gray-500">Nenhuma empresa funcionará</p>
+              </div>
+            ) : (
+              empresasFuncionam.map((empresa) => (
+                <div
+                  key={empresa.id}
+                  className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg sm:rounded-xl p-3 sm:p-5 border-2 border-green-100 hover:border-green-200 transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="bg-green-500 rounded-full p-1 sm:p-1.5 flex-shrink-0">
+                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm sm:text-base font-semibold text-gray-800 truncate">
+                        {empresa.nome}
+                      </h4>
+                      <p className="text-xs sm:text-sm text-green-600 mt-0.5 sm:mt-1 font-medium">
+                        Atendimento confirmado ✓
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      ) : (
-        <>
-          <div className="mt-5 overflow-x-auto">
-            <div className="min-w-[780px] rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="grid grid-cols-3">
-                <div className="p-4 bg-[#2687e2] text-white font-extrabold">EMPRESAS</div>
-                <div className="p-4 bg-[#16a34a] text-white font-extrabold text-center">SIM ✅</div>
-                <div className="p-4 bg-[#ef4444] text-white font-extrabold text-center">NÃO ❌</div>
+
+        {/* Empresas que NÃO funcionam */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow border-2 border-red-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-500 to-rose-600 px-3 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="bg-white/20 backdrop-blur-sm p-1.5 sm:p-2 rounded-lg">
+                <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </div>
-
-              <div className="divide-y">
-                {empresas.length === 0 ? (
-                  <div className="p-4 text-sm text-gray-600">Nenhuma empresa cadastrada.</div>
-                ) : (
-                  empresas.map((emp) => {
-                    const st = operacaoMap[emp.id] ?? null
-                    const sim = st === 'Sim'
-                    const nao = st === 'Não' || st == null // default visual: Não
-                    const salvando = salvandoEmpresaId === emp.id
-
-                    return (
-                      <div key={emp.id} className="grid grid-cols-3 items-center">
-                        <div className="p-4 text-sm font-semibold text-gray-900 truncate">{emp.nome}</div>
-
-                        <div className="p-4 flex justify-center">
-                          <button
-                            type="button"
-                            disabled={salvando}
-                            onClick={() => marcarOperacao(emp.id, 'Sim')}
-                            className={`h-10 w-10 rounded-full border flex items-center justify-center text-lg ${
-                              sim
-                                ? 'bg-[#16a34a] border-[#16a34a] text-white'
-                                : 'bg-white border-gray-200 text-gray-400 hover:text-[#16a34a]'
-                            } ${salvando ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title="Vai ter atendimento"
-                          >
-                            ✓
-                          </button>
-                        </div>
-
-                        <div className="p-4 flex justify-center">
-                          <button
-                            type="button"
-                            disabled={salvando}
-                            onClick={() => marcarOperacao(emp.id, 'Não')}
-                            className={`h-10 w-10 rounded-full border flex items-center justify-center text-lg ${
-                              nao
-                                ? 'bg-[#ef4444] border-[#ef4444] text-white'
-                                : 'bg-white border-gray-200 text-gray-400 hover:text-[#ef4444]'
-                            } ${salvando ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title="Não vai ter atendimento"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
+              <div>
+                <h3 className="text-base sm:text-xl font-bold text-white">
+                  Não Funcionam
+                </h3>
+                <p className="text-red-50 text-xs sm:text-sm">
+                  {empresasNaoFuncionam.length} {empresasNaoFuncionam.length === 1 ? 'empresa' : 'empresas'}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-gray-200 p-4">
-              <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">SIM (vai ter atendimento)</p>
-              <p className="text-2xl font-extrabold text-[#16a34a]">{simCount}</p>
+          <div className="p-3 sm:p-6 space-y-3 sm:space-y-4 max-h-[500px] sm:max-h-[600px] overflow-y-auto">
+            {empresasNaoFuncionam.length === 0 ? (
+              <div className="text-center py-8 sm:py-12">
+                <Building2 className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mx-auto mb-3" />
+                <p className="text-xs sm:text-sm text-gray-500">Todas funcionarão</p>
+              </div>
+            ) : (
+              empresasNaoFuncionam.map((empresa) => (
+                <div
+                  key={empresa.id}
+                  className="bg-gradient-to-r from-red-50 to-rose-50 rounded-lg sm:rounded-xl p-3 sm:p-5 border-2 border-red-100 hover:border-red-200 transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="bg-red-500 rounded-full p-1 sm:p-1.5 flex-shrink-0">
+                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm sm:text-base font-semibold text-gray-800 truncate">
+                        {empresa.nome}
+                      </h4>
+                      <p className="text-xs sm:text-sm text-red-600 mt-0.5 sm:mt-1 font-medium">
+                        Fechado ✕
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Resumo */}
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow border border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-center">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="bg-green-100 rounded-full p-2 sm:p-3">
+              <CheckCircle2 className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
             </div>
-            <div className="rounded-xl border border-gray-200 p-4">
-              <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">NÃO (não vai ter atendimento)</p>
-              <p className="text-2xl font-extrabold text-[#ef4444]">{naoCount}</p>
+            <div className="text-left">
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {empresasFuncionam.length}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Funcionando</p>
             </div>
           </div>
-        </>
-      )}
+
+          <div className="hidden sm:block h-12 w-px bg-gray-300"></div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="bg-red-100 rounded-full p-2 sm:p-3">
+              <XCircle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600" />
+            </div>
+            <div className="text-left">
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {empresasNaoFuncionam.length}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Fechadas</p>
+            </div>
+          </div>
+
+          <div className="hidden sm:block h-12 w-px bg-gray-300"></div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="bg-blue-100 rounded-full p-2 sm:p-3">
+              <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+            </div>
+            <div className="text-left">
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {empresas.length}
+              </p>
+              <p className="text-xs sm:text-sm text-gray-600">Total</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Aviso */}
+      <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 sm:p-6">
+        <div className="flex items-start gap-2 sm:gap-3">
+          <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-base sm:text-lg font-semibold text-amber-900 mb-1 sm:mb-2">
+              Informação Importante
+            </h3>
+            <p className="text-xs sm:text-sm text-amber-800">
+              Os horários e escalas podem sofrer alterações de última hora. 
+              Em caso de dúvidas, entre em contato com seu supervisor ou coordenador.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

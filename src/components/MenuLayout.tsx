@@ -3,8 +3,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabaseClient'
+import { hasPermission, type UserRole } from '@/lib/permissions'
 
-const menuLinks = [
+type MenuSubItem = {
+  href: string
+  label: string
+}
+
+type MenuItem =
+  | {
+      href: string
+      label: string
+      color?: string
+      sub?: readonly MenuSubItem[]
+    }
+  | {
+      label: string
+      color?: string
+      sub: readonly MenuSubItem[]
+    }
+
+const menuLinks: readonly MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/', label: 'Início' },
 
@@ -59,18 +79,62 @@ const menuLinks = [
     ],
   },
 
+  { href: '/informacoes-agentes', label: 'Informações de Agentes' },
+
   { href: '/login?logout=1', label: 'Sair', color: 'gray' },
 ] as const
 
 export default function MenuLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [role, setRole] = useState<UserRole | null>(null)
+  const [loadingRole, setLoadingRole] = useState(true)
 
-  // ✅ Esconde menu em rotas específicas (inclui subrotas)
+  useEffect(() => {
+    let active = true
+
+    async function loadRole() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!active) return
+
+      if (!session?.user) {
+        setRole(null)
+        setLoadingRole(false)
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+
+      if (!active) return
+
+      if (profile?.role) {
+        setRole(profile.role as UserRole)
+      } else {
+        setRole(null)
+      }
+
+      setLoadingRole(false)
+    }
+
+    loadRole()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   const esconderMenu = useMemo(() => {
-    // ✅ ADD AQUI
-    const hiddenPrefixes = ['/campanhas', '/login', '/escala-feriado']
-    return hiddenPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))
+    if (pathname === '/login') return true
+    if (pathname === '/escala-feriado' || pathname.startsWith('/escala-feriado/')) return true
+    if (pathname === '/campanhas') return true
+    return false
   }, [pathname])
 
   function isActive(href: string) {
@@ -78,10 +142,56 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
     return pathname === href || pathname.startsWith(href + '/')
   }
 
+  const menuFiltrado = useMemo(() => {
+    if (!role) return []
+
+    return menuLinks
+      .map((link) => {
+        if ('href' in link && link.href === '/login?logout=1') {
+          return link
+        }
+
+        const subItems = 'sub' in link ? (link.sub ?? []) : []
+
+        if (subItems.length > 0) {
+          const subPermitidos = subItems.filter((sub) => hasPermission(role, sub.href))
+          const paiPermitido = 'href' in link && link.href ? hasPermission(role, link.href) : false
+
+          if (!paiPermitido && subPermitidos.length === 0) return null
+
+          return {
+            ...link,
+            sub: subPermitidos,
+          } as MenuItem
+        }
+
+        if ('href' in link && link.href && hasPermission(role, link.href)) {
+          return link
+        }
+
+        return null
+      })
+      .filter(Boolean) as MenuItem[]
+  }, [role])
+
   useEffect(() => {
-    const match = menuLinks.find((link: any) => link.sub?.some((sub: any) => isActive(sub.href)))
-    if (match) setOpenDropdown(match.label)
-  }, [pathname])
+    const match = menuFiltrado.find((link) => {
+      const subItems = 'sub' in link ? (link.sub ?? []) : []
+      return subItems.some((sub) => isActive(sub.href))
+    })
+
+    if (match) {
+      setOpenDropdown(match.label)
+    }
+  }, [pathname, menuFiltrado])
+
+  if (loadingRole) {
+    return (
+      <div className="flex min-h-screen bg-[#f5f6f7]">
+        <main className="flex-1 p-6 overflow-auto">{children}</main>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f5f6f7]">
@@ -89,17 +199,17 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
         <aside className="w-64 bg-[#2687e2] text-white flex flex-col p-4 space-y-2 shadow-lg">
           <h2 className="text-xl font-bold mb-4">Sonax Painel</h2>
 
-          {menuLinks.map((link: any) => {
-            const temSub = !!link.sub
+          {menuFiltrado.map((link) => {
+            const subItems = 'sub' in link ? (link.sub ?? []) : []
+            const temSub = subItems.length > 0
             const isGray = link.color === 'gray'
-
-            const ativoPai = link.href ? isActive(link.href) : false
-            const ativoAlgumSub = temSub ? link.sub.some((s: any) => isActive(s.href)) : false
+            const ativoPai = 'href' in link && link.href ? isActive(link.href) : false
+            const ativoAlgumSub = subItems.some((s) => isActive(s.href))
 
             return (
-              <div key={link.href ?? link.label} className="relative">
+              <div key={('href' in link && link.href) ? link.href : link.label} className="relative">
                 <div className="flex items-center justify-between gap-2">
-                  {link.href ? (
+                  {'href' in link && link.href ? (
                     <Link
                       href={link.href}
                       className={[
@@ -133,8 +243,9 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
 
                 {temSub && openDropdown === link.label && (
                   <div className="ml-4 mt-2 space-y-1">
-                    {link.sub.map((sub: any) => {
+                    {subItems.map((sub) => {
                       const subAtivo = isActive(sub.href)
+
                       return (
                         <Link
                           key={sub.href}

@@ -147,6 +147,10 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
 
     return menuLinks
       .map((link) => {
+        if (role === 'marketing') {
+          return link
+        }
+
         if ('href' in link && link.href === '/login?logout=1') {
           return link
         }
@@ -206,25 +210,46 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
             const ativoPai = 'href' in link && link.href ? isActive(link.href) : false
             const ativoAlgumSub = subItems.some((s) => isActive(s.href))
 
+            const paiPermitido =
+              role === 'marketing'
+                ? 'href' in link &&
+                  !!link.href &&
+                  (link.href === '/informacoes-agentes' || link.href === '/login?logout=1')
+                : 'href' in link && link.href
+                ? hasPermission(role as UserRole, link.href)
+                : false
+
             return (
               <div key={('href' in link && link.href) ? link.href : link.label} className="relative">
                 <div className="flex items-center justify-between gap-2">
                   {'href' in link && link.href ? (
-                    <Link
-                      href={link.href}
-                      className={[
-                        'block w-full px-3 py-2 rounded-md text-sm font-medium transition',
-                        isGray
-                          ? 'bg-gray-500 hover:bg-gray-600'
-                          : ativoPai || ativoAlgumSub
-                          ? 'bg-[#145a9c]'
-                          : 'hover:bg-[#1f6bb6]',
-                      ].join(' ')}
-                    >
-                      {link.label}
-                    </Link>
+                    paiPermitido ? (
+                      <Link
+                        href={link.href}
+                        className={[
+                          'block w-full px-3 py-2 rounded-md text-sm font-medium transition',
+                          isGray
+                            ? 'bg-gray-500 hover:bg-gray-600'
+                            : ativoPai || ativoAlgumSub
+                            ? 'bg-[#145a9c]'
+                            : 'hover:bg-[#1f6bb6]',
+                        ].join(' ')}
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <div
+                        className={[
+                          'block w-full px-3 py-2 rounded-md text-sm font-medium cursor-not-allowed opacity-50',
+                          isGray ? 'bg-gray-500' : 'bg-[#1f6bb6]',
+                        ].join(' ')}
+                        title="Acesso bloqueado para marketing"
+                      >
+                        {link.label}
+                      </div>
+                    )
                   ) : (
-                    <div className="block w-full px-3 py-2 rounded-md text-sm font-bold uppercase tracking-wide text-white/95 bg-[#1f6bb6]">
+                    <div className="block w-full px-3 py-2 rounded-md text-sm font-bold uppercase tracking-wide text-white/95 bg-[#1f6bb6] opacity-70">
                       {link.label}
                     </div>
                   )}
@@ -232,9 +257,18 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
                   {temSub && (
                     <button
                       type="button"
-                      onClick={() => setOpenDropdown(openDropdown === link.label ? null : link.label)}
-                      className="text-white text-xs px-2 py-2 rounded hover:bg-[#1f6bb6] transition"
+                      onClick={() => {
+                        if (role === 'marketing') return
+                        setOpenDropdown(openDropdown === link.label ? null : link.label)
+                      }}
+                      className={[
+                        'text-white text-xs px-2 py-2 rounded transition',
+                        role === 'marketing'
+                          ? 'cursor-not-allowed opacity-50'
+                          : 'hover:bg-[#1f6bb6]',
+                      ].join(' ')}
                       aria-label={`Abrir submenu de ${link.label}`}
+                      disabled={role === 'marketing'}
                     >
                       {openDropdown === link.label ? '▲' : '▼'}
                     </button>
@@ -245,8 +279,10 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
                   <div className="ml-4 mt-2 space-y-1">
                     {subItems.map((sub) => {
                       const subAtivo = isActive(sub.href)
+                      const subPermitido =
+                        role === 'marketing' ? false : hasPermission(role as UserRole, sub.href)
 
-                      return (
+                      return subPermitido ? (
                         <Link
                           key={sub.href}
                           href={sub.href}
@@ -257,6 +293,17 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
                         >
                           {sub.label}
                         </Link>
+                      ) : (
+                        <div
+                          key={sub.href}
+                          className={[
+                            'block px-3 py-1.5 rounded-md text-sm cursor-not-allowed opacity-50',
+                            subAtivo ? 'bg-[#145a9c]' : 'bg-[#1f6bb6]',
+                          ].join(' ')}
+                          title="Acesso bloqueado para marketing"
+                        >
+                          {sub.label}
+                        </div>
                       )
                     })}
                   </div>

@@ -29,6 +29,8 @@ const MESES = [
   { value: '12', label: 'Dezembro' },
 ] as const
 
+type UserRole = 'supervisao' | 'lider' | 'marketing'
+
 type FormState = {
   nome_completo: string
   nome_abreviado: string
@@ -82,6 +84,7 @@ export default function InformacoesAgentesPage() {
   const [openModal, setOpenModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [role, setRole] = useState<UserRole | null>(null)
 
   const [filtroCargo, setFiltroCargo] = useState('')
   const [filtroNicho, setFiltroNicho] = useState('')
@@ -110,6 +113,28 @@ export default function InformacoesAgentesPage() {
 
   useEffect(() => {
     carregarAgentes()
+  }, [])
+
+  useEffect(() => {
+    async function carregarRole() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session?.user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+
+      if (profile?.role) {
+        setRole(profile.role as UserRole)
+      }
+    }
+
+    carregarRole()
   }, [])
 
   function handleChange<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -142,12 +167,15 @@ export default function InformacoesAgentesPage() {
   }
 
   function abrirNovo() {
+    if (role === 'marketing') return
     setEditingId(null)
     setForm(emptyForm)
     setOpenModal(true)
   }
 
   function abrirEdicao(agente: AgenteInfo) {
+    if (role === 'marketing') return
+
     setEditingId(agente.id)
     setForm({
       nome_completo: agente.nome_completo || '',
@@ -171,6 +199,8 @@ export default function InformacoesAgentesPage() {
   }
 
   async function salvarAgente() {
+    if (role === 'marketing') return
+
     if (!form.nome_completo.trim()) {
       alert('Preencha o nome completo.')
       return
@@ -229,6 +259,8 @@ export default function InformacoesAgentesPage() {
   }
 
   async function excluirAgente(id: string) {
+    if (role === 'marketing') return
+
     const ok = confirm('Deseja excluir este agente?')
     if (!ok) return
 
@@ -376,12 +408,23 @@ export default function InformacoesAgentesPage() {
               </p>
             </div>
 
-            <button
-              onClick={abrirNovo}
-              className="rounded-2xl bg-[#28a3fe] px-5 py-3 text-sm font-semibold text-white shadow hover:opacity-95"
-            >
-              + Novo Agente
-            </button>
+            {role === 'marketing' ? (
+              <button
+                type="button"
+                disabled
+                title="Cadastro bloqueado para marketing"
+                className="cursor-not-allowed rounded-2xl bg-[#9fd6ff] px-5 py-3 text-sm font-semibold text-white shadow opacity-70"
+              >
+                + Novo Agente
+              </button>
+            ) : (
+              <button
+                onClick={abrirNovo}
+                className="rounded-2xl bg-[#28a3fe] px-5 py-3 text-sm font-semibold text-white shadow hover:opacity-95"
+              >
+                + Novo Agente
+              </button>
+            )}
           </div>
         </div>
 
@@ -672,18 +715,41 @@ export default function InformacoesAgentesPage() {
                       <Td>{agente.telefone || '-'}</Td>
                       <Td>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => abrirEdicao(agente)}
-                            className="rounded-xl border border-[#28a3fe] px-3 py-1.5 text-xs font-semibold text-[#28a3fe]"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => excluirAgente(agente.id)}
-                            className="rounded-xl border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600"
-                          >
-                            Excluir
-                          </button>
+                          {role === 'marketing' ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled
+                                className="cursor-not-allowed rounded-xl border border-[#9fd6ff] px-3 py-1.5 text-xs font-semibold text-[#7abce8] opacity-70"
+                                title="Edição bloqueada para marketing"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                disabled
+                                className="cursor-not-allowed rounded-xl border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-300 opacity-70"
+                                title="Exclusão bloqueada para marketing"
+                              >
+                                Excluir
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => abrirEdicao(agente)}
+                                className="rounded-xl border border-[#28a3fe] px-3 py-1.5 text-xs font-semibold text-[#28a3fe]"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => excluirAgente(agente.id)}
+                                className="rounded-xl border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600"
+                              >
+                                Excluir
+                              </button>
+                            </>
+                          )}
                         </div>
                       </Td>
                     </tr>
@@ -695,7 +761,7 @@ export default function InformacoesAgentesPage() {
         </section>
       </div>
 
-      {openModal && (
+      {openModal && role !== 'marketing' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="max-h-[95vh] w-full max-w-5xl overflow-auto rounded-[28px] bg-white p-6 shadow-2xl">
             <div className="mb-6 flex items-center justify-between">

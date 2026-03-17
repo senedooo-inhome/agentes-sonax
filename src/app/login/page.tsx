@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
+type UserRole = 'supervisao' | 'lider' | 'marketing'
+
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -25,34 +27,57 @@ export default function LoginPage() {
     setLoading(true)
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    setLoading(false)
 
     if (error) {
+      setLoading(false)
       setErrorMsg(error.message)
       return
     }
 
-    const userEmail = data?.user?.email
-    if (userEmail === 'supervisao@sonax.net.br' || userEmail === 'sonaxinhome@gmail.com') {
-      router.replace('/chamada')
-    } else {
-      router.replace('/')
+    const user = data?.user
+
+    if (!user) {
+      setLoading(false)
+      setErrorMsg('Usuário não encontrado.')
+      return
     }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    setLoading(false)
+
+    if (profileError || !profile?.role) {
+      setErrorMsg('Perfil não encontrado no sistema.')
+      return
+    }
+
+    const role = profile.role as UserRole
+
+    if (role === 'marketing') {
+      router.replace('/informacoes-agentes')
+      return
+    }
+
+    if (role === 'supervisao' || role === 'lider') {
+      router.replace('/chamada')
+      return
+    }
+
+    router.replace('/')
   }
 
   return (
     <main className="h-screen w-screen overflow-hidden bg-white relative">
-      {/* faixa inferior azul (como no print) */}
       <div className="absolute bottom-0 left-0 right-0 h-16 bg-[#1677ff]" />
-
-      {/* formas decorativas (azul) */}
       <div className="absolute -top-12 -left-12 h-44 w-44 rounded-full bg-[#1677ff]" />
       <div className="absolute bottom-16 left-10 h-56 w-56 rounded-[40px] bg-[#1677ff] rotate-12" />
 
-      {/* container 16:9 (desktop-first) */}
       <div className="relative z-10 h-full w-full flex items-center justify-center px-8">
         <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 items-center gap-10">
-          {/* CARD LOGIN */}
           <div className="flex justify-center md:justify-start">
             <form
               onSubmit={onSubmit}
@@ -103,7 +128,6 @@ export default function LoginPage() {
             </form>
           </div>
 
-          {/* TRIÂNGULO DIREITA (como no print) */}
           <div className="hidden md:flex justify-center">
             <div className="relative w-[440px] h-[320px] drop-shadow-[0_18px_25px_rgba(0,0,0,0.18)]">
               <div

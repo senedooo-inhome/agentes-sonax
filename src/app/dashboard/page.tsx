@@ -59,6 +59,14 @@ type ErrosEmpresaMap = Record<string, number>
 
 type PlantaoLinha = { nome: string; qtd: number }
 
+type Empresa = { id: number; nome: string }
+
+type PessoaMes = {
+  nome: string
+  dia: number
+  extra?: string
+}
+
 // ✅ Data local (Brasil) -> "YYYY-MM-DD"
 function toISODateLocal(d: Date) {
   const y = d.getFullYear()
@@ -136,20 +144,23 @@ function empresaValida(emp: any) {
   return true
 }
 
-// =======================
-// ✅ NOVO: Quadro feriado
-// =======================
-type Empresa = { id: number; nome: string }
-type OperacaoRegistro = {
-  id: number
-  data: string // YYYY-MM-DD
-  empresa_id: number
-  status_operacao: string | null // "Sim" | "Não" (ou null)
-  feriado: string | null
-  observacao: string | null
-  responsavel: string | null
-  quem_adicionou: string | null
-  created_at?: string | null
+function parseISODateParts(value: any) {
+  const s = String(value ?? '').slice(0, 10)
+  const [ano, mes, dia] = s.split('-').map(Number)
+
+  if (!ano || !mes || !dia) return null
+
+  return {
+    ano,
+    mesIndex: mes - 1,
+    dia,
+  }
+}
+
+function formatarDataBR(dataISO: string) {
+  const [ano, mes, dia] = String(dataISO).split('-')
+  if (!ano || !mes || !dia) return dataISO
+  return `${dia}/${mes}/${ano}`
 }
 
 function hojeISO() {
@@ -159,7 +170,6 @@ function hojeISO() {
 export default function DashboardPage() {
   const mesAtual = getMesAtualInfo()
 
-  // ✅ NOVO: filtros (mês/ano)
   const [filtroAno, setFiltroAno] = useState<number>(mesAtual.ano)
   const [filtroMes, setFiltroMes] = useState<number>(mesAtual.mesIndex)
 
@@ -175,7 +185,6 @@ export default function DashboardPage() {
   })
 
   const [resumoStatus, setResumoStatus] = useState<ResumoStatus[]>([])
-
   const [errosPorAgente, setErrosPorAgente] = useState<ErrosAgenteMap>({})
   const [errosPorEmpresa, setErrosPorEmpresa] = useState<ErrosEmpresaMap>({})
   const [mesLabel, setMesLabel] = useState('')
@@ -184,18 +193,20 @@ export default function DashboardPage() {
   const [plantoesPorAgente, setPlantoesPorAgente] = useState<PlantaoLinha[]>([])
   const [agentesFerias, setAgentesFerias] = useState<string[]>([])
 
-  // ✅ NOVO: dados do quadro feriado
+  // ✅ Quadro feriado (somente visualização)
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [proximoFeriado, setProximoFeriado] = useState<{ data: string; feriado: string } | null>(null)
   const [operacaoMap, setOperacaoMap] = useState<Record<number, 'Sim' | 'Não' | null>>({})
-  const [salvandoEmpresaId, setSalvandoEmpresaId] = useState<number | null>(null)
+
+  // ✅ Extras
+  const [aniversariantesMes, setAniversariantesMes] = useState<PessoaMes[]>([])
+  const [tempoServicoMes, setTempoServicoMes] = useState<PessoaMes[]>([])
 
   useEffect(() => {
     carregarQuadroFeriado()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ✅ NOVO: recarrega dashboard quando mudar mês/ano
   useEffect(() => {
     carregarDashboard()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,15 +214,14 @@ export default function DashboardPage() {
 
   async function carregarQuadroFeriado() {
     try {
-      // 1) lista de empresas
       const { data: empresasData, error: eEmp } = await supabase
         .from('empresas')
         .select('id, nome')
         .order('nome', { ascending: true })
+
       if (eEmp) throw eEmp
       setEmpresas((empresasData ?? []) as Empresa[])
 
-      // 2) descobre o "próximo feriado" baseado na tabela operacao_empresas (primeira data >= hoje)
       const hoje = hojeISO()
       const { data: proxData, error: eProx } = await supabase
         .from('operacao_empresas')
@@ -223,8 +233,8 @@ export default function DashboardPage() {
       if (eProx) throw eProx
 
       const prox = proxData && proxData[0] ? (proxData[0] as any) : null
+
       if (!prox?.data) {
-        // sem feriado cadastrado futuro
         setProximoFeriado(null)
         setOperacaoMap({})
         return
@@ -235,7 +245,6 @@ export default function DashboardPage() {
 
       setProximoFeriado({ data: dataFeriado, feriado: nomeFeriado })
 
-      // 3) pega status_operacao de TODAS as empresas para essa data
       const { data: ops, error: eOps } = await supabase
         .from('operacao_empresas')
         .select('empresa_id, status_operacao')
@@ -244,11 +253,14 @@ export default function DashboardPage() {
       if (eOps) throw eOps
 
       const map: Record<number, 'Sim' | 'Não' | null> = {}
+
       ;(ops ?? []).forEach((r: any) => {
         const empresaId = Number(r.empresa_id)
         const st = String(r.status_operacao ?? '').trim()
+
         map[empresaId] = st === 'Sim' ? 'Sim' : st === 'Não' ? 'Não' : null
       })
+
       setOperacaoMap(map)
     } catch (e: any) {
       console.error(e)
@@ -256,43 +268,9 @@ export default function DashboardPage() {
     }
   }
 
-  async function marcarOperacao(empresaId: number, status: 'Sim' | 'Não') {
-    if (!proximoFeriado?.data) {
-      return alert('Nenhum feriado futuro encontrado na tabela operacao_empresas.')
-    }
-
-    setSalvandoEmpresaId(empresaId)
-    try {
-      const { data: sess } = await supabase.auth.getSession()
-      const email = sess.session?.user?.email ?? null
-
-      // ✅ upsert por (data, empresa_id)
-      const { error } = await supabase.from('operacao_empresas').upsert(
-        [
-          {
-            data: proximoFeriado.data,
-            empresa_id: empresaId,
-            status_operacao: status,
-            feriado: proximoFeriado.feriado,
-            quem_adicionou: email,
-          },
-        ],
-        { onConflict: 'data,empresa_id' }
-      )
-
-      if (error) throw error
-
-      setOperacaoMap((prev) => ({ ...prev, [empresaId]: status }))
-    } catch (e: any) {
-      console.error(e)
-      alert('Erro ao salvar operação: ' + (e?.message ?? String(e)))
-    } finally {
-      setSalvandoEmpresaId(null)
-    }
-  }
-
   async function carregarDashboard() {
     setAtualizando(true)
+
     try {
       const { inicio, fim, label } = getMesInfo(filtroAno, filtroMes)
       setMesLabel(label)
@@ -311,6 +289,7 @@ export default function DashboardPage() {
         .order('nome', { ascending: true })
 
       if (feriasNomesErr) throw feriasNomesErr
+
       setAgentesFerias((feriasNomesData || []).map((x: any) => x.nome).filter(Boolean))
 
       const { count: atestados } = await supabase
@@ -428,6 +407,46 @@ export default function DashboardPage() {
         .gte('data', inicio)
         .lte('data', fim)
 
+      const { data: infoAgentes, error: infoAgentesErr } = await supabase
+        .from('informacoes_agentes')
+        .select('nome_abreviado, data_nascimento, data_admissao')
+
+      if (infoAgentesErr) throw infoAgentesErr
+
+      const aniversariantes: PessoaMes[] = []
+      const temposServico: PessoaMes[] = []
+
+      ;(infoAgentes || []).forEach((item: any) => {
+        const nome = String(item.nome_abreviado ?? '').trim()
+        if (!nome) return
+
+        const nasc = parseISODateParts(item.data_nascimento)
+        if (nasc && nasc.mesIndex === filtroMes) {
+          aniversariantes.push({
+            nome,
+            dia: nasc.dia,
+          })
+        }
+
+        const adm = parseISODateParts(item.data_admissao)
+        if (adm && adm.mesIndex === filtroMes) {
+          const anos = filtroAno - adm.ano
+          if (anos >= 0) {
+            temposServico.push({
+              nome,
+              dia: adm.dia,
+              extra: `${anos} ${anos === 1 ? 'ano' : 'anos'}`,
+            })
+          }
+        }
+      })
+
+      aniversariantes.sort((a, b) => a.dia - b.dia || a.nome.localeCompare(b.nome))
+      temposServico.sort((a, b) => a.dia - b.dia || a.nome.localeCompare(b.nome))
+
+      setAniversariantesMes(aniversariantes)
+      setTempoServicoMes(temposServico)
+
       setStats({
         ferias: ferias || 0,
         atestados: atestados || 0,
@@ -497,13 +516,19 @@ export default function DashboardPage() {
 
   const topPlantoes = useMemo(() => plantoesPorAgente.slice(0, 10), [plantoesPorAgente])
 
-  const simCount = useMemo(() => empresas.filter((e) => operacaoMap[e.id] === 'Sim').length, [empresas, operacaoMap])
-  const naoCount = useMemo(
-    () => empresas.filter((e) => (operacaoMap[e.id] ?? 'Não') === 'Não').length,
+  const empresasSim = useMemo(
+    () => empresas.filter((e) => operacaoMap[e.id] === 'Sim'),
     [empresas, operacaoMap]
   )
 
-  // ✅ NOVO: opções de anos (ex.: do ano atual - 4 até o ano atual + 1)
+  const empresasNao = useMemo(
+    () => empresas.filter((e) => operacaoMap[e.id] === 'Não'),
+    [empresas, operacaoMap]
+  )
+
+  const simCount = empresasSim.length
+  const naoCount = empresasNao.length
+
   const anosOptions = useMemo(() => {
     const currentYear = new Date().getFullYear()
     const start = currentYear - 4
@@ -527,7 +552,6 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* ✅ NOVO: filtros de mês/ano + botão atualizar */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <select
@@ -603,95 +627,90 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ✅ NOVO QUADRO (abaixo dos dois gráficos) */}
+        {/* FERIADO + EXTRAS */}
         <section className="mt-6">
-          <div className="bg-white border border-gray-200 rounded-2xl shadow p-6">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Empresas que vai e não vai ter atendimento no próximo feriado{' '}
-                  <span className="text-[#2687e2] font-extrabold">
-                    (
+          <div className="grid grid-cols-1 xl:grid-cols-[1.7fr_0.9fr] gap-4">
+            {/* QUADRO FERIADO */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 md:p-5">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-[15px] md:text-base font-semibold text-gray-900 leading-tight">
+                    Empresas com atendimento no próximo feriado
+                  </h2>
+                  <p className="text-[11px] text-gray-500 mt-1">
                     {proximoFeriado
-                      ? `${proximoFeriado.feriado} — ${proximoFeriado.data}`
-                      : 'sem feriado futuro cadastrado'}
-                    )
-                  </span>
-                </h2>
-                <p className="text-xs text-gray-500 mt-1">
-                  Fonte: <strong>empresas</strong> + <strong>operacao_empresas</strong> (status_operacao = “Sim/Não”).
-                </p>
+                      ? `${proximoFeriado.feriado} — ${formatarDataBR(proximoFeriado.data)}`
+                      : 'Sem feriado futuro cadastrado'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={carregarQuadroFeriado}
+                  className="h-8 rounded-lg border border-[#2687e2] px-3 text-[12px] font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+                >
+                  Recarregar
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={carregarQuadroFeriado}
-                className="rounded-lg border border-[#2687e2] px-4 py-2 text-sm font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
-              >
-                Recarregar quadro
-              </button>
-            </div>
+              {!proximoFeriado ? (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-[12px] text-amber-800">
+                  Não encontrei nenhum feriado futuro em <strong>operacao_empresas</strong>.
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-[12px] text-green-700 font-medium">
+                      <span className="h-2 w-2 rounded-full bg-green-600" />
+                      Vai atender: <strong>{simCount}</strong>
+                    </span>
 
-            {!proximoFeriado ? (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                Não encontrei nenhum feriado futuro em <strong>operacao_empresas</strong> (data &gt;= hoje).
-                <br />
-                Cadastre pelo menos 1 linha (com <strong>data</strong> e <strong>feriado</strong>) e o quadro volta a funcionar.
-              </div>
-            ) : (
-              <>
-                <div className="mt-5 overflow-x-auto">
-                  <div className="min-w-[780px] rounded-2xl border border-gray-200 overflow-hidden">
-                    <div className="grid grid-cols-3">
-                      <div className="p-4 bg-[#2687e2] text-white font-extrabold">EMPRESAS</div>
-                      <div className="p-4 bg-[#16a34a] text-white font-extrabold text-center">SIM ✅</div>
-                      <div className="p-4 bg-[#ef4444] text-white font-extrabold text-center">NÃO ❌</div>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-red-50 border border-red-200 px-3 py-1 text-[12px] text-red-700 font-medium">
+                      <span className="h-2 w-2 rounded-full bg-red-500" />
+                      Não vai atender: <strong>{naoCount}</strong>
+                    </span>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="grid grid-cols-[minmax(0,1fr)_90px] bg-gray-50 border-b border-gray-200">
+                      <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                        Empresa
+                      </div>
+                      <div className="px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                        Status
+                      </div>
                     </div>
 
-                    <div className="divide-y">
+                    <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-100">
                       {empresas.length === 0 ? (
-                        <div className="p-4 text-sm text-gray-600">Nenhuma empresa encontrada em empresas.</div>
+                        <div className="px-3 py-3 text-[12px] text-gray-500">Nenhuma empresa encontrada.</div>
                       ) : (
                         empresas.map((emp) => {
                           const st = operacaoMap[emp.id] ?? null
-                          const sim = st === 'Sim'
-                          const nao = st === 'Não' || st == null // default: Não
-                          const salvando = salvandoEmpresaId === emp.id
 
                           return (
-                            <div key={emp.id} className="grid grid-cols-3 items-center">
-                              <div className="p-4 text-sm font-semibold text-gray-900 truncate">{emp.nome}</div>
-
-                              <div className="p-4 flex justify-center">
-                                <button
-                                  type="button"
-                                  disabled={salvando}
-                                  onClick={() => marcarOperacao(emp.id, 'Sim')}
-                                  className={`h-10 w-10 rounded-full border flex items-center justify-center text-lg ${
-                                    sim
-                                      ? 'bg-[#16a34a] border-[#16a34a] text-white'
-                                      : 'bg-white border-gray-200 text-gray-400 hover:text-[#16a34a]'
-                                  } ${salvando ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  title="Vai ter atendimento"
-                                >
-                                  ✓
-                                </button>
+                            <div
+                              key={emp.id}
+                              className="grid grid-cols-[minmax(0,1fr)_90px] items-center"
+                            >
+                              <div className="px-3 py-2.5 min-w-0">
+                                <p className="truncate text-[13px] font-medium text-gray-800">{emp.nome}</p>
                               </div>
 
-                              <div className="p-4 flex justify-center">
-                                <button
-                                  type="button"
-                                  disabled={salvando}
-                                  onClick={() => marcarOperacao(emp.id, 'Não')}
-                                  className={`h-10 w-10 rounded-full border flex items-center justify-center text-lg ${
-                                    nao
-                                      ? 'bg-[#ef4444] border-[#ef4444] text-white'
-                                      : 'bg-white border-gray-200 text-gray-400 hover:text-[#ef4444]'
-                                  } ${salvando ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  title="Não vai ter atendimento"
-                                >
-                                  ✕
-                                </button>
+                              <div className="px-3 py-2 flex justify-center">
+                                {st === 'Sim' ? (
+                                  <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700">
+                                    Sim
+                                  </span>
+                                ) : st === 'Não' ? (
+                                  <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+                                    Não
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-500">
+                                    —
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )
@@ -699,20 +718,107 @@ export default function DashboardPage() {
                       )}
                     </div>
                   </div>
+
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-green-100 bg-green-50/60 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700 mb-2">
+                        Empresas que vão atender
+                      </p>
+
+                      {empresasSim.length === 0 ? (
+                        <p className="text-[12px] text-gray-500">Nenhuma marcada.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {empresasSim.map((emp) => (
+                            <span
+                              key={emp.id}
+                              className="inline-flex items-center rounded-full border border-green-200 bg-white px-2.5 py-1 text-[11px] text-gray-700"
+                            >
+                              {emp.nome}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-red-100 bg-red-50/60 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700 mb-2">
+                        Empresas que não vão atender
+                      </p>
+
+                      {empresasNao.length === 0 ? (
+                        <p className="text-[12px] text-gray-500">Nenhuma marcada.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {empresasNao.map((emp) => (
+                            <span
+                              key={emp.id}
+                              className="inline-flex items-center rounded-full border border-red-200 bg-white px-2.5 py-1 text-[11px] text-gray-700"
+                            >
+                              {emp.nome}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* LATERAL COMEMORATIVA */}
+            <div className="grid grid-cols-1 gap-4">
+              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-[14px] font-semibold text-gray-900">Aniversariantes do mês</h3>
+                  <span className="text-[11px] text-gray-500">{aniversariantesMes.length}</span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-gray-200 p-4">
-                    <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">SIM (vai ter atendimento)</p>
-                    <p className="text-2xl font-extrabold text-[#16a34a]">{simCount}</p>
+                {aniversariantesMes.length === 0 ? (
+                  <p className="mt-3 text-[12px] text-gray-500">Nenhum aniversariante neste mês.</p>
+                ) : (
+                  <div className="mt-3 max-h-[220px] overflow-auto rounded-xl border border-gray-100">
+                    <ul className="divide-y divide-gray-100">
+                      {aniversariantesMes.map((p, i) => (
+                        <li key={p.nome + i} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                          <span className="text-[12px] font-medium text-gray-800 truncate">{p.nome}</span>
+                          <span className="text-[11px] font-semibold text-[#2687e2] whitespace-nowrap">
+                            {String(p.dia).padStart(2, '0')}/{String(filtroMes + 1).padStart(2, '0')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="rounded-xl border border-gray-200 p-4">
-                    <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide">NÃO (não vai ter atendimento)</p>
-                    <p className="text-2xl font-extrabold text-[#ef4444]">{naoCount}</p>
-                  </div>
+                )}
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-[14px] font-semibold text-gray-900">Tempo de serviço no mês</h3>
+                  <span className="text-[11px] text-gray-500">{tempoServicoMes.length}</span>
                 </div>
-              </>
-            )}
+
+                {tempoServicoMes.length === 0 ? (
+                  <p className="mt-3 text-[12px] text-gray-500">Nenhuma comemoração neste mês.</p>
+                ) : (
+                  <div className="mt-3 max-h-[220px] overflow-auto rounded-xl border border-gray-100">
+                    <ul className="divide-y divide-gray-100">
+                      {tempoServicoMes.map((p, i) => (
+                        <li key={p.nome + i} className="px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[12px] font-medium text-gray-800 truncate">{p.nome}</span>
+                            <span className="text-[11px] font-semibold text-[#00897b] whitespace-nowrap">
+                              {String(p.dia).padStart(2, '0')}/{String(filtroMes + 1).padStart(2, '0')}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-gray-500">{p.extra}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 

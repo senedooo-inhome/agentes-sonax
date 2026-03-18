@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 type UserRole = 'supervisao' | 'lider' | 'marketing'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,7 +24,10 @@ export default function LoginPage() {
     setErrorMsg(null)
     setLoading(true)
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
     if (error) {
       setLoading(false)
@@ -48,26 +49,22 @@ export default function LoginPage() {
       .eq('id', user.id)
       .single()
 
-    setLoading(false)
-
     if (profileError || !profile?.role) {
+      setLoading(false)
       setErrorMsg('Perfil não encontrado no sistema.')
       return
     }
 
     const role = profile.role as UserRole
 
+    setLoading(false)
+
     if (role === 'marketing') {
-      router.replace('/informacoes-agentes')
+      window.location.href = '/informacoes-agentes'
       return
     }
 
-    if (role === 'supervisao' || role === 'lider') {
-      router.replace('/chamada')
-      return
-    }
-
-    router.replace('/')
+    window.location.href = '/dashboard'
   }
 
   return (

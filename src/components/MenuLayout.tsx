@@ -211,10 +211,12 @@ export default function MenuLayout({ children }: { children: React.ReactNode }) 
             const ativoAlgumSub = subItems.some((s) => isActive(s.href))
 
             const paiPermitido =
-              role === 'marketing'
+              'href' in link && link.href === '/login?logout=1'
+                ? true
+                : role === 'marketing'
                 ? 'href' in link &&
                   !!link.href &&
-                  (link.href === '/informacoes-agentes' || link.href === '/login?logout=1')
+                  link.href === '/informacoes-agentes'
                 : 'href' in link && link.href
                 ? hasPermission(role as UserRole, link.href)
                 : false

@@ -1,15 +1,8 @@
 export type Nullable<T> = T | null
 
-export type CargoAgente =
-  | 'TELEFONISTA'
-  | 'SUPERVISOR'
-  | 'LIDER'
-  | 'CEO'
-  | 'COORDENADOR'
+export type CargoAgente = string
 
-export type NichoAgente =
-  | 'SAC'
-  | 'CLINICA'
+export type NichoAgente = string
 
 export interface AgenteInfo {
   id: string
@@ -19,7 +12,7 @@ export interface AgenteInfo {
 
   carga_horaria: Nullable<string>
 
-  cargo: Nullable<CargoAgente>
+  cargo: Nullable<string>
 
   cep: Nullable<string>
   endereco: Nullable<string>
@@ -31,7 +24,7 @@ export interface AgenteInfo {
 
   dependentes: Nullable<number>
 
-  nicho: Nullable<NichoAgente>
+  nicho: Nullable<string>
 
   previsao_ferias: Nullable<string>
   dias_ferias: Nullable<number>

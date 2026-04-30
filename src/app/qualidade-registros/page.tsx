@@ -200,37 +200,36 @@ export default function QualidadeRegistrosPage() {
   }
 
   // ✅ RELATÓRIO = só reclamações + colunas específicas
-  async function carregarRelatorio() {
-    try {
-      setCarregandoRelatorio(true)
+async function carregarRelatorio() {
+  try {
+    setCarregandoRelatorio(true)
 
-      let q = supabase
-        .from('qualidade_registros')
-        .select(
-          'id, created_at, tipo, data, telefone, agente, empresa, canal, descricao_reclamacao, acao_tomada'
-        )
-        .eq('tipo', 'reclamacao')
-        .order('data', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(500)
+    let q = supabase
+      .from('qualidade_registros')
+      .select(
+        'id, created_at, tipo, data, telefone, agente, empresa, status_atendimento, link_monitoria, nota_monitoria, canal, motivo, descricao_reclamacao, acao_tomada, status_reclamacao'
+      )
+      .order('data', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(500)
 
-      if (filtros.empresa) q = q.eq('empresa', filtros.empresa)
-      if (filtros.agente) q = q.eq('agente', filtros.agente)
-      if (filtros.canal) q = q.eq('canal', filtros.canal)
-      if (filtros.de) q = q.gte('data', filtros.de)
-      if (filtros.ate) q = q.lte('data', filtros.ate)
+    if (filtros.empresa) q = q.eq('empresa', filtros.empresa)
+    if (filtros.agente) q = q.eq('agente', filtros.agente)
+    if (filtros.canal) q = q.eq('canal', filtros.canal)
+    if (filtros.de) q = q.gte('data', filtros.de)
+    if (filtros.ate) q = q.lte('data', filtros.ate)
 
-      const { data, error } = await q
-      if (error) throw error
+    const { data, error } = await q
+    if (error) throw error
 
-      setRelatorio((data as any) || [])
-    } catch (err: any) {
-      console.error(err)
-      alert('Erro ao carregar relatório: ' + (err?.message || 'Erro desconhecido'))
-    } finally {
-      setCarregandoRelatorio(false)
-    }
+    setRelatorio((data as any) || [])
+  } catch (err: any) {
+    console.error(err)
+    alert('Erro ao carregar relatório: ' + (err?.message || 'Erro desconhecido'))
+  } finally {
+    setCarregandoRelatorio(false)
   }
+}
 
   function resetForm() {
     setForm({
@@ -745,7 +744,9 @@ export default function QualidadeRegistrosPage() {
                       <tr key={r.id} className="border-t border-[#e2e8f0] hover:bg-[#f8fafc] align-top">
                         <td className="py-2 pr-3 whitespace-nowrap">{r.data}</td>
                         <td className="py-2 pr-3 whitespace-nowrap">{r.telefone}</td>
-                        <td className="py-2 pr-3 font-semibold">Reclamação</td>
+                        <td className="py-2 pr-3 font-semibold">
+  {r.tipo === 'avaliacao_monitoria' ? 'Avaliação da monitoria' : 'Reclamação'}
+</td>
                         <td className="py-2 pr-3">{r.agente ?? '—'}</td>
                         <td className="py-2 pr-3">{r.empresa ?? '—'}</td>
                         <td className="py-2 pr-3 whitespace-nowrap">{r.canal ?? '—'}</td>

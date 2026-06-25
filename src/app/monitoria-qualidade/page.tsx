@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabaseClient'
 type Agente = { id: string | number; nome: string }
 type Empresa = { id: string | number; nome: string }
 
+const SOLICITOU_PESQUISA = ['Sim', 'Não', 'Não se aplica'] as const
+type SolicitouPesquisa = (typeof SOLICITOU_PESQUISA)[number]
+
 const STATUS = ['Selecione', 'Aprovado', 'Reprovado', 'Pendente'] as const
 type Tabulacao = '' | 'Correto' | 'Incorreto'
 
@@ -19,6 +22,7 @@ type MonitoriaRow = {
   numero_cliente: string
   status: string
   tabulacao: 'Correto' | 'Incorreto'
+  solicitou_pesquisa: SolicitouPesquisa | null
   observacao: string | null
 }
 
@@ -81,6 +85,7 @@ export default function MonitoriaQualidadePage() {
     numero_cliente: '',
     status: '' as string,
     tabulacao: '' as Tabulacao,
+    solicitou_pesquisa: '' as '' | SolicitouPesquisa,
     observacao: '',
   })
 
@@ -153,7 +158,7 @@ export default function MonitoriaQualidadePage() {
     try {
       const { data, error } = await supabase
         .from('monitoria_qualidade')
-        .select('id, created_at, data, agente, empresa, numero_cliente, status, tabulacao, observacao')
+        .select('id, created_at, data, agente, empresa, numero_cliente, status, tabulacao, solicitou_pesquisa, observacao')
         .order('created_at', { ascending: false })
         .limit(8)
 
@@ -171,7 +176,7 @@ export default function MonitoriaQualidadePage() {
 
       let q = supabase
         .from('monitoria_qualidade')
-        .select('id, created_at, data, agente, empresa, numero_cliente, status, tabulacao, observacao')
+        .select('id, created_at, data, agente, empresa, numero_cliente, status, tabulacao, solicitou_pesquisa, observacao')
         .order('data', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(300)
@@ -200,9 +205,10 @@ export default function MonitoriaQualidadePage() {
       !form.empresa.trim() ||
       !form.numero_cliente.trim() ||
       !form.status ||
-      !form.tabulacao
+      !form.tabulacao ||
+      !form.solicitou_pesquisa
     ) {
-      alert('Preencha: Data, Agente, Empresa, Número do cliente, Status e Tabulação.')
+      alert('Preencha: Data, Agente, Empresa, Número do cliente, Status, Tabulação e Solicitou pesquisa.')
       return
     }
 
@@ -216,6 +222,7 @@ export default function MonitoriaQualidadePage() {
         numero_cliente: form.numero_cliente.trim(),
         status: form.status,
         tabulacao: form.tabulacao,
+        solicitou_pesquisa: form.solicitou_pesquisa,
         observacao: form.observacao.trim() ? form.observacao.trim() : null,
       }
 
@@ -230,6 +237,7 @@ export default function MonitoriaQualidadePage() {
         numero_cliente: '',
         status: '',
         tabulacao: '',
+        solicitou_pesquisa: '',
         observacao: '',
       })
       setBuscaAgente('')
@@ -252,6 +260,7 @@ export default function MonitoriaQualidadePage() {
       numero_cliente: r.numero_cliente,
       status: r.status,
       tabulacao: r.tabulacao,
+      solicitou_pesquisa: r.solicitou_pesquisa ?? '',
       observacao: r.observacao ?? '',
       criado_em: r.created_at,
     }))
@@ -457,6 +466,30 @@ export default function MonitoriaQualidadePage() {
                 Escolha rápida (sem dropdown) para ficar operacional.
               </p>
             </div>
+
+            {/* Solicitou pesquisa */}
+            <div>
+              <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
+                Solicitou pesquisa
+              </label>
+              <select
+                className="w-full rounded-lg border p-2 text-[#535151] bg-white"
+                value={form.solicitou_pesquisa}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    solicitou_pesquisa: e.target.value as '' | SolicitouPesquisa,
+                  })
+                }
+              >
+                <option value="">Selecione</option>
+                {SOLICITOU_PESQUISA.map((opcao) => (
+                  <option key={opcao} value={opcao}>
+                    {opcao}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Observação */}
@@ -498,6 +531,7 @@ export default function MonitoriaQualidadePage() {
           <th className="py-2 pr-3 font-semibold">Cliente</th>
           <th className="py-2 pr-3 font-semibold">Status</th>
           <th className="py-2 pr-3 font-semibold">Tabulação</th>
+          <th className="py-2 pr-3 font-semibold">Solicitou pesquisa</th>
         </tr>
       </thead>
 
@@ -522,6 +556,9 @@ export default function MonitoriaQualidadePage() {
               >
                 {r.tabulacao}
               </span>
+            </td>
+            <td className="py-2 pr-3 text-gray-800">
+              {r.solicitou_pesquisa ? r.solicitou_pesquisa : '—'}
             </td>
           </tr>
         ))}
@@ -632,19 +669,20 @@ export default function MonitoriaQualidadePage() {
                   <th className="py-2 pr-3">Cliente</th>
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Tabulação</th>
+                  <th className="py-2 pr-3">Solicitou pesquisa</th>
                   <th className="py-2 pr-3">Observação</th>
                 </tr>
               </thead>
               <tbody>
                 {carregandoRelatorio ? (
                   <tr>
-                    <td className="py-3 text-gray-700" colSpan={7}>
+                    <td className="py-3 text-gray-700" colSpan={8}>
                       Carregando…
                     </td>
                   </tr>
                 ) : relatorio.length === 0 ? (
                   <tr>
-                    <td className="py-3 text-gray-700" colSpan={7}>
+                    <td className="py-3 text-gray-700" colSpan={8}>
                       Nenhum dado com esses filtros.
                     </td>
                   </tr>
@@ -667,6 +705,9 @@ export default function MonitoriaQualidadePage() {
                         >
                           {r.tabulacao}
                         </span>
+                      </td>
+                      <td className="py-2 pr-3">
+                        {r.solicitou_pesquisa ? r.solicitou_pesquisa : <span className="text-gray-400">—</span>}
                       </td>
                       <td className="py-2 pr-3 text-gray-700">
                         {r.observacao ? r.observacao : <span className="text-gray-400">—</span>}

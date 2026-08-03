@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+
+type Agente = { id: string | number; nome: string }
 
 export default function AdvertenciasPage() {
   const router = useRouter()
@@ -33,6 +35,57 @@ export default function AdvertenciasPage() {
   // loading do submit
   const [salvando, setSalvando] = useState(false)
 
+  // agentes vindos do Supabase
+  const [agentes, setAgentes] = useState<Agente[]>([])
+  const [carregandoAgentes, setCarregandoAgentes] = useState(false)
+  const [buscaAgente, setBuscaAgente] = useState('')
+  const [mostrarListaAgentes, setMostrarListaAgentes] = useState(false)
+  const agenteRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        agenteRef.current &&
+        !agenteRef.current.contains(event.target as Node)
+      ) {
+        setMostrarListaAgentes(false)
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setMostrarListaAgentes(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  async function carregarAgentes() {
+    try {
+      setCarregandoAgentes(true)
+
+      const { data, error } = await supabase
+        .from('agentes')
+        .select('id, nome')
+        .order('nome', { ascending: true })
+
+      if (error) throw error
+
+      setAgentes(((data ?? []) as Agente[]).filter((a) => a.nome?.trim()))
+    } catch (err: any) {
+      alert('Erro ao carregar agentes: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setCarregandoAgentes(false)
+    }
+  }
+
   // efeito que valida permissão
   useEffect(() => {
     let mounted = true
@@ -56,6 +109,7 @@ export default function AdvertenciasPage() {
       if (mounted) {
         setAutorizado(true)
         setCarregandoPermissao(false)
+        await carregarAgentes()
       }
     })()
 
@@ -115,12 +169,32 @@ export default function AdvertenciasPage() {
         observacoes: '',
         link_evidencia: '',
       })
+      setBuscaAgente('')
+      setMostrarListaAgentes(false)
     } catch (err: any) {
       alert('Erro ao salvar: ' + err.message)
     } finally {
       setSalvando(false)
     }
   }
+
+  const agentesFiltrados = useMemo(() => {
+    const termo = buscaAgente
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim()
+
+    if (!termo) return agentes
+
+    return agentes.filter((agente) =>
+      agente.nome
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .includes(termo)
+    )
+  }, [agentes, buscaAgente])
 
   //
   // 3. LISTAS DOS SELECTS
@@ -220,19 +294,70 @@ Cada registro é tratado com seriedade, buscando sempre o diálogo, a correção
                 />
               </div>
 
-              <div>
+              <div ref={agenteRef} className="relative">
                 <label className="block text-sm font-semibold mb-1 text-[#ff751f]">
                   Nome do Agente
                 </label>
+
                 <input
                   type="text"
-                  className="w-full rounded-lg border p-2 text-[#535151]"
-                  value={form.agente}
-                  onChange={(e) =>
-                    setForm({ ...form, agente: e.target.value })
+                  className="w-full rounded-lg border p-2 text-[#535151] disabled:opacity-60"
+                  value={buscaAgente}
+                  onChange={(e) => {
+                    setBuscaAgente(e.target.value)
+                    setForm({ ...form, agente: '' })
+                    setMostrarListaAgentes(true)
+                  }}
+                  onFocus={() => setMostrarListaAgentes(true)}
+                  placeholder={
+                    carregandoAgentes
+                      ? 'Carregando agentes...'
+                      : 'Buscar e selecionar agente'
                   }
-                  placeholder="Ex.: JOANA"
+                  autoComplete="off"
+                  disabled={carregandoAgentes}
                 />
+
+                {form.agente && (
+                  <p className="mt-1 text-xs font-medium text-green-700">
+                    Selecionado: {form.agente}
+                  </p>
+                )}
+
+                {mostrarListaAgentes && !carregandoAgentes && (
+                  <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border bg-white shadow-lg">
+                    {agentesFiltrados.length ? (
+                      agentesFiltrados.map((agente) => (
+                        <button
+                          key={String(agente.id)}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setForm({ ...form, agente: agente.nome })
+                            setBuscaAgente(agente.nome)
+                            setMostrarListaAgentes(false)
+                          }}
+                          className="block w-full border-b px-3 py-2 text-left text-sm text-[#535151] hover:bg-blue-50 last:border-b-0"
+                        >
+                          {agente.nome}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-3 text-sm text-gray-500">
+                        Nenhum agente encontrado.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setMostrarListaAgentes((atual) => !atual)}
+                  className="mt-2 rounded-lg border border-[#2687e2] px-3 py-1.5 text-xs font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+                  disabled={carregandoAgentes}
+                >
+                  {mostrarListaAgentes ? 'Fechar lista' : 'Buscar agente'}
+                </button>
               </div>
             </div>
 

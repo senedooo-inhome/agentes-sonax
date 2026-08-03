@@ -7,14 +7,17 @@ import { supabase } from '@/lib/supabaseClient'
 type Item = { id: string | number; nome: string }
 
 const TIPOS_ERRO = [
-  'Factorial',
-  'Pontualidade',
-  'Erro atendimento Tel',
-  'Problemas tec.',
-  'Erro atendimento chat',
-  'Mat. Trab. inadequado',
+  'Registro de ponto incorreto',
+  'Pontualidade Login',
+  'Pontualidade atraso nas pausas 10/20 e almoço.',
+  'Erro no atendimento telefônico',
+  'Erro no atendimento via chat',
+  'Falta de atenção ao Bitrix',
   'Tabulação incorreta',
-  'Falta de atenção Bitrix',
+  'Problemas técnicos: computador / internet',
+  'Material de trabalho inadequado',
+  'Procedimento incorreto nos sistemas.',
+  'Comunicação com o paciente / cliente incorreto.',
   'Outros',
 ] as const
 

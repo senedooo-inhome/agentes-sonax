@@ -68,6 +68,11 @@ export default function RelatorioAdvertenciasPage() {
   const [linhas, setLinhas] = useState<LinhaAdv[]>([])
   const [loading, setLoading] = useState(false)
 
+  // ✅ NOVO: estado do modal de edição e exclusão
+  const [editando, setEditando] = useState<LinhaAdv | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
+
   function atalhoHoje() {
     const d = new Date().toISOString().slice(0, 10)
     setDataIni(d)
@@ -205,6 +210,68 @@ export default function RelatorioAdvertenciasPage() {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
+  }
+
+  // ✅ NOVO: abrir modal de edição com uma cópia da linha
+  function abrirEdicao(linha: LinhaAdv) {
+    setEditando({ ...linha })
+  }
+
+  function fecharEdicao() {
+    setEditando(null)
+  }
+
+  // ✅ NOVO: salvar alterações no supabase
+  async function salvarEdicao() {
+    if (!editando) return
+    setSalvando(true)
+    try {
+      const { error } = await supabase
+        .from('advertencias')
+        .update({
+          data: editando.data,
+          supervisor: editando.supervisor,
+          agente: editando.agente,
+          motivo: editando.motivo,
+          descricao: editando.descricao,
+          tipo_advertencia: editando.tipo_advertencia,
+          acao: editando.acao,
+          status: editando.status,
+          observacoes: editando.observacoes,
+          link_evidencia: editando.link_evidencia,
+        })
+        .eq('id', editando.id)
+
+      if (error) throw error
+
+      setLinhas((prev) =>
+        prev.map((l) => (l.id === editando.id ? { ...l, ...editando } : l))
+      )
+      setEditando(null)
+    } catch (err: any) {
+      alert('Erro ao salvar: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // ✅ NOVO: excluir registro
+  async function excluirLinha(id: string) {
+    const ok = window.confirm(
+      'Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.'
+    )
+    if (!ok) return
+
+    setExcluindoId(id)
+    try {
+      const { error } = await supabase.from('advertencias').delete().eq('id', id)
+      if (error) throw error
+      setLinhas((prev) => prev.filter((l) => l.id !== id))
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setExcluindoId(null)
+    }
   }
 
   return (
@@ -393,6 +460,7 @@ export default function RelatorioAdvertenciasPage() {
                     <th className="border-b p-2">Obs.</th>
                     <th className="border-b p-2">Link</th>
                     <th className="border-b p-2">Criado em</th>
+                    <th className="border-b p-2">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -424,6 +492,23 @@ export default function RelatorioAdvertenciasPage() {
                       <td className="border-b p-2 text-[#535151]">
                         {new Date(l.created_at).toLocaleString('pt-BR')}
                       </td>
+                      <td className="border-b p-2">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => abrirEdicao(l)}
+                            className="rounded-lg border border-[#2687e2] px-2 py-1 text-xs font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => excluirLinha(l.id)}
+                            disabled={excluindoId === l.id}
+                            className="rounded-lg border border-red-500 px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-500 hover:text-white disabled:opacity-50"
+                          >
+                            {excluindoId === l.id ? 'Excluindo…' : 'Excluir'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -432,6 +517,150 @@ export default function RelatorioAdvertenciasPage() {
           )}
         </div>
       </div>
+
+      {/* ✅ NOVO: Modal de edição */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-lg space-y-4">
+            <h2 className="text-lg font-semibold text-[#535151]">Editar advertência</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data</label>
+                <input
+                  type="date"
+                  value={editando.data}
+                  onChange={(e) => setEditando({ ...editando, data: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Supervisor</label>
+                <input
+                  type="text"
+                  value={editando.supervisor}
+                  onChange={(e) => setEditando({ ...editando, supervisor: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Agente</label>
+                <input
+                  type="text"
+                  value={editando.agente}
+                  onChange={(e) => setEditando({ ...editando, agente: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Motivo</label>
+                <select
+                  value={editando.motivo}
+                  onChange={(e) => setEditando({ ...editando, motivo: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151] bg-white"
+                >
+                  {MOTIVOS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Tipo de advertência</label>
+                <select
+                  value={editando.tipo_advertencia}
+                  onChange={(e) => setEditando({ ...editando, tipo_advertencia: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151] bg-white"
+                >
+                  {TIPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Status</label>
+                <select
+                  value={editando.status}
+                  onChange={(e) => setEditando({ ...editando, status: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151] bg-white"
+                >
+                  {STATUS_OPCOES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Ação tomada</label>
+                <input
+                  type="text"
+                  value={editando.acao}
+                  onChange={(e) => setEditando({ ...editando, acao: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Link de evidência</label>
+                <input
+                  type="text"
+                  value={editando.link_evidencia ?? ''}
+                  onChange={(e) => setEditando({ ...editando, link_evidencia: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Descrição</label>
+              <textarea
+                value={editando.descricao}
+                onChange={(e) => setEditando({ ...editando, descricao: e.target.value })}
+                rows={4}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Observações</label>
+              <textarea
+                value={editando.observacoes ?? ''}
+                onChange={(e) => setEditando({ ...editando, observacoes: e.target.value })}
+                rows={3}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={fecharEdicao}
+                disabled={salvando}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarEdicao}
+                disabled={salvando}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
+                {salvando ? 'Salvando…' : 'Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

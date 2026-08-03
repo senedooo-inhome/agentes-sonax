@@ -10,7 +10,7 @@ type LinhaErro = {
   supervisor: string
   agente: string
   nicho: string | null
-  empresa: string | null // ✅ NOVO: empresa real
+  empresa: string | null // ✅ empresa real
   tipo: string | null
   relato: string
   created_at: string
@@ -61,13 +61,18 @@ export default function RelatorioErros() {
   const [fTipo, setFTipo] = useState<string>('Todos')
   const [fNicho, setFNicho] = useState<string>('Todos')
 
-  // ✅ NOVO: empresas do supabase + filtro select
+  // empresas do supabase + filtro select
   const [empresas, setEmpresas] = useState<EmpresaRow[]>([])
   const [carregandoEmpresas, setCarregandoEmpresas] = useState(false)
   const [fEmpresa, setFEmpresa] = useState<string>('Todas')
 
   const [linhas, setLinhas] = useState<LinhaErro[]>([])
   const [loading, setLoading] = useState(false)
+
+  // ✅ NOVO: estado do modal de edição
+  const [editando, setEditando] = useState<LinhaErro | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
 
   function atalhoHoje() {
     const d = new Date().toISOString().slice(0, 10)
@@ -113,7 +118,6 @@ export default function RelatorioErros() {
   async function buscar() {
     setLoading(true)
     try {
-      // ✅ agora traz empresa (real) também
       const { data, error } = await supabase
         .from('erros_agentes')
         .select('id, created_at, data, supervisor, agente, nicho, empresa, tipo, relato')
@@ -124,23 +128,19 @@ export default function RelatorioErros() {
 
       let all = (data ?? []) as LinhaErro[]
 
-      // filtros de texto
       const qSup = qSupervisor.trim().toLowerCase()
       const qAgt = qAgente.trim().toLowerCase()
       if (qSup) all = all.filter((l) => (l.supervisor ?? '').toLowerCase().includes(qSup))
       if (qAgt) all = all.filter((l) => (l.agente ?? '').toLowerCase().includes(qAgt))
 
-      // filtro por tipo
       if (fTipo !== 'Todos') {
         all = all.filter((l) => (l.tipo ?? '') === fTipo)
       }
 
-      // filtro por nicho
       if (fNicho !== 'Todos') {
         all = all.filter((l) => (l.nicho ?? '') === fNicho)
       }
 
-      // ✅ filtro por empresa (select do supabase)
       if (fEmpresa !== 'Todas') {
         all = all.filter((l) => (l.empresa ?? '') === fEmpresa)
       }
@@ -172,7 +172,6 @@ export default function RelatorioErros() {
       return
     }
 
-    // ✅ troca "Nicho" por "Empresa"
     const headers = ['Data', 'Supervisor', 'Agente', 'Empresa', 'Nicho', 'Tipo', 'Relato', 'Criado em']
 
     const rows = linhas.map((l) =>
@@ -200,6 +199,64 @@ export default function RelatorioErros() {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
+  }
+
+  // ✅ NOVO: abrir modal de edição com uma cópia da linha
+  function abrirEdicao(linha: LinhaErro) {
+    setEditando({ ...linha })
+  }
+
+  function fecharEdicao() {
+    setEditando(null)
+  }
+
+  // ✅ NOVO: salvar alterações no supabase
+  async function salvarEdicao() {
+    if (!editando) return
+    setSalvando(true)
+    try {
+      const { error } = await supabase
+        .from('erros_agentes')
+        .update({
+          data: editando.data,
+          supervisor: editando.supervisor,
+          agente: editando.agente,
+          empresa: editando.empresa,
+          nicho: editando.nicho,
+          tipo: editando.tipo,
+          relato: editando.relato,
+        })
+        .eq('id', editando.id)
+
+      if (error) throw error
+
+      // atualiza a linha na lista local sem precisar buscar tudo de novo
+      setLinhas((prev) =>
+        prev.map((l) => (l.id === editando.id ? { ...l, ...editando } : l))
+      )
+      setEditando(null)
+    } catch (err: any) {
+      alert('Erro ao salvar: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // ✅ NOVO: excluir registro
+  async function excluirLinha(id: string) {
+    const ok = window.confirm('Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.')
+    if (!ok) return
+
+    setExcluindoId(id)
+    try {
+      const { error } = await supabase.from('erros_agentes').delete().eq('id', id)
+      if (error) throw error
+      setLinhas((prev) => prev.filter((l) => l.id !== id))
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setExcluindoId(null)
+    }
   }
 
   return (
@@ -250,7 +307,6 @@ export default function RelatorioErros() {
               />
             </div>
 
-            {/* ✅ NOVO: Empresa (select do supabase) */}
             <div>
               <label className="block text-sm font-medium mb-1 text-[#ff751f]">Empresa</label>
               <select
@@ -358,6 +414,7 @@ export default function RelatorioErros() {
                     <th className="border-b p-2">Tipo</th>
                     <th className="border-b p-2">Relato</th>
                     <th className="border-b p-2">Criado em</th>
+                    <th className="border-b p-2">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -373,6 +430,23 @@ export default function RelatorioErros() {
                       <td className="border-b p-2 text-[#535151]">
                         {new Date(l.created_at).toLocaleString('pt-BR')}
                       </td>
+                      <td className="border-b p-2">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => abrirEdicao(l)}
+                            className="rounded-lg border border-[#2687e2] px-2 py-1 text-xs font-semibold text-[#2687e2] hover:bg-[#2687e2] hover:text-white"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => excluirLinha(l.id)}
+                            disabled={excluindoId === l.id}
+                            className="rounded-lg border border-red-500 px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-500 hover:text-white disabled:opacity-50"
+                          >
+                            {excluindoId === l.id ? 'Excluindo…' : 'Excluir'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -381,6 +455,119 @@ export default function RelatorioErros() {
           )}
         </div>
       </div>
+
+      {/* ✅ NOVO: Modal de edição */}
+      {editando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-lg space-y-4">
+            <h2 className="text-lg font-semibold text-[#535151]">Editar registro</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Data</label>
+                <input
+                  type="date"
+                  value={editando.data}
+                  onChange={(e) => setEditando({ ...editando, data: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Supervisor</label>
+                <input
+                  type="text"
+                  value={editando.supervisor}
+                  onChange={(e) => setEditando({ ...editando, supervisor: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Agente</label>
+                <input
+                  type="text"
+                  value={editando.agente}
+                  onChange={(e) => setEditando({ ...editando, agente: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Empresa</label>
+                <select
+                  value={editando.empresa ?? ''}
+                  onChange={(e) => setEditando({ ...editando, empresa: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151] bg-white"
+                >
+                  <option value="">-</option>
+                  {empresas.map((em) => (
+                    <option key={String(em.id)} value={em.nome}>
+                      {em.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Nicho</label>
+                <select
+                  value={editando.nicho ?? ''}
+                  onChange={(e) => setEditando({ ...editando, nicho: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                >
+                  <option value="">-</option>
+                  <option value="Clínica">Clínica</option>
+                  <option value="SAC">SAC</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1 text-[#ff751f]">Tipo do erro</label>
+                <select
+                  value={editando.tipo ?? ''}
+                  onChange={(e) => setEditando({ ...editando, tipo: e.target.value })}
+                  className="w-full rounded-lg border p-2 text-[#535151]"
+                >
+                  <option value="">-</option>
+                  {TIPOS_ERRO.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[#ff751f]">Relato</label>
+              <textarea
+                value={editando.relato}
+                onChange={(e) => setEditando({ ...editando, relato: e.target.value })}
+                rows={4}
+                className="w-full rounded-lg border p-2 text-[#535151]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={fecharEdicao}
+                disabled={salvando}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={salvarEdicao}
+                disabled={salvando}
+                className="rounded-lg bg-[#2687e2] px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
+              >
+                {salvando ? 'Salvando…' : 'Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

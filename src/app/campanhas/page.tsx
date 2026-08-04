@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 type Nicho = 'SAC' | 'Clínica'
 
 export default function CampanhasPage() {
-  const [aba, setAba] = useState<'elogio'|'reciclagem'|'vale'>('elogio')
+  const [aba, setAba] = useState<'elogio'|'reciclagem'|'vale'|'fone'>('elogio')
 
   const hoje = new Date().toISOString().slice(0,10)
 
@@ -136,6 +136,160 @@ export default function CampanhasPage() {
     }
   }
 
+
+  // --- Solicitar novo fone ---
+  const [foneForm, setFoneForm] = useState({
+    data: hoje,
+    nome: '',
+    cep: '',
+    rua: '',
+    numero: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    cpf: '',
+    telefone: '',
+    email: '',
+    ciente: false
+  })
+  const [buscandoCep, setBuscandoCep] = useState(false)
+  const [enviandoFone, setEnviandoFone] = useState(false)
+
+  function somenteNumeros(valor: string) {
+    return valor.replace(/\D/g, '')
+  }
+
+  function formatarCep(valor: string) {
+    const numeros = somenteNumeros(valor).slice(0, 8)
+    return numeros.replace(/(\d{5})(\d)/, '$1-$2')
+  }
+
+  function formatarCpf(valor: string) {
+    const numeros = somenteNumeros(valor).slice(0, 11)
+    return numeros
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+  }
+
+  function formatarTelefone(valor: string) {
+    const numeros = somenteNumeros(valor).slice(0, 11)
+    if (numeros.length <= 10) {
+      return numeros
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
+    }
+    return numeros
+      .replace(/(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+  }
+
+  async function buscarEnderecoPorCep(cepInformado: string) {
+    const cep = somenteNumeros(cepInformado)
+    if (cep.length !== 8) return
+
+    try {
+      setBuscandoCep(true)
+      const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      if (!resposta.ok) throw new Error('Não foi possível consultar o CEP.')
+
+      const endereco = await resposta.json()
+      if (endereco.erro) {
+        alert('CEP não encontrado. Confira o número ou preencha o endereço manualmente.')
+        return
+      }
+
+      setFoneForm(formAtual => ({
+        ...formAtual,
+        rua: endereco.logradouro || formAtual.rua,
+        bairro: endereco.bairro || formAtual.bairro,
+        cidade: endereco.localidade || formAtual.cidade,
+        estado: endereco.uf || formAtual.estado
+      }))
+    } catch (err: any) {
+      alert(err.message || 'Erro ao consultar o CEP. Você pode preencher o endereço manualmente.')
+    } finally {
+      setBuscandoCep(false)
+    }
+  }
+
+  async function enviarSolicitacaoFone(e: React.FormEvent) {
+    e.preventDefault()
+
+    const camposObrigatorios = [
+      foneForm.nome,
+      foneForm.cep,
+      foneForm.rua,
+      foneForm.numero,
+      foneForm.bairro,
+      foneForm.cidade,
+      foneForm.estado,
+      foneForm.cpf,
+      foneForm.telefone,
+      foneForm.email
+    ]
+
+    if (camposObrigatorios.some(campo => !campo.trim())) {
+      alert('Preencha todos os dados obrigatórios para solicitar o novo fone.')
+      return
+    }
+    if (somenteNumeros(foneForm.cep).length !== 8) {
+      alert('Informe um CEP válido com 8 números.')
+      return
+    }
+    if (somenteNumeros(foneForm.cpf).length !== 11) {
+      alert('Informe um CPF válido com 11 números.')
+      return
+    }
+    if (!foneForm.email.includes('@')) {
+      alert('Informe um e-mail válido.')
+      return
+    }
+    if (!foneForm.ciente) {
+      alert('Confirme que todos os dados estão corretos e atualizados.')
+      return
+    }
+
+    try {
+      setEnviandoFone(true)
+      const { error } = await supabase.from('solicitacoes_fone').insert([{
+        data: foneForm.data,
+        nome: foneForm.nome.trim(),
+        cep: somenteNumeros(foneForm.cep),
+        rua: foneForm.rua.trim(),
+        numero: foneForm.numero.trim(),
+        bairro: foneForm.bairro.trim(),
+        cidade: foneForm.cidade.trim(),
+        estado: foneForm.estado.trim().toUpperCase(),
+        cpf: somenteNumeros(foneForm.cpf),
+        telefone: somenteNumeros(foneForm.telefone),
+        email: foneForm.email.trim().toLowerCase(),
+        ciente: foneForm.ciente
+      }])
+
+      if (error) throw error
+      alert('Solicitação de novo fone enviada com sucesso!')
+      setFoneForm({
+        data: hoje,
+        nome: '',
+        cep: '',
+        rua: '',
+        numero: '',
+        bairro: '',
+        cidade: '',
+        estado: '',
+        cpf: '',
+        telefone: '',
+        email: '',
+        ciente: false
+      })
+    } catch (err: any) {
+      alert('Erro ao enviar: ' + err.message)
+    } finally {
+      setEnviandoFone(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f5f6f7] p-6">
       <div className="mx-auto max-w-3xl space-y-6">
@@ -144,7 +298,7 @@ export default function CampanhasPage() {
         </header>
 
         {/* Abas */}
-        <div className="rounded-xl bg-white p-2 shadow flex gap-2">
+        <div className="rounded-xl bg-white p-2 shadow flex flex-wrap gap-2">
           <button
             className={`px-4 py-2 rounded-lg text-sm font-semibold ${aba==='elogio'?'bg-[#2687e2] text-white':'bg-gray-100 text-gray-700'}`}
             onClick={()=>setAba('elogio')}
@@ -162,6 +316,12 @@ export default function CampanhasPage() {
             onClick={()=>setAba('vale')}
           >
             Vale (adiantamento)
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${aba==='fone'?'bg-[#2687e2] text-white':'bg-gray-100 text-gray-700'}`}
+            onClick={()=>setAba('fone')}
+          >
+            Solicitar novo fone
           </button>
         </div>
 
@@ -400,7 +560,7 @@ export default function CampanhasPage() {
               </button>
             </form>
           </div>
-        ) : (
+        ) : aba==='vale' ? (
           // --- Aba VALE ---
           <div className="rounded-xl bg-white p-6 shadow space-y-4">
             <div className="text-gray-800 space-y-2">
@@ -475,6 +635,112 @@ export default function CampanhasPage() {
                 className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
               >
                 {enviandoVale ? 'Enviando…' : 'Solicitar Vale'}
+              </button>
+            </form>
+          </div>
+        ) : (
+          // --- Aba SOLICITAR NOVO FONE ---
+          <div className="rounded-xl bg-white p-6 shadow space-y-4">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-gray-800">
+              <p className="font-bold text-[#ff751f]">Solicitar novo fone</p>
+              <p className="mt-2 text-sm">
+                Sempre que for necessário realizar o envio de fone para algum colaborador,
+                é obrigatório confirmar e preencher todos os dados abaixo.
+              </p>
+              <p className="mt-3 text-sm font-semibold">
+                Antes de solicitar o envio, confiram todos os dados e garantam que estejam corretos e atualizados.
+              </p>
+              <p className="mt-2 text-sm">Conto com a atenção e o cuidado de todos.</p>
+            </div>
+
+            <form onSubmit={enviarSolicitacaoFone} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Data</label>
+                <input type="date" value={foneForm.data} onChange={e=>setFoneForm({...foneForm, data:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nome completo</label>
+                <input type="text" value={foneForm.nome} onChange={e=>setFoneForm({...foneForm, nome:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Nome do colaborador" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">CEP</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={foneForm.cep}
+                    onChange={e=>setFoneForm({...foneForm, cep:formatarCep(e.target.value)})}
+                    onBlur={e=>buscarEnderecoPorCep(e.target.value)}
+                    className="w-full rounded-lg border p-2 text-[#535151]"
+                    placeholder="00000-000"
+                    maxLength={9}
+                  />
+                  <button
+                    type="button"
+                    onClick={()=>buscarEnderecoPorCep(foneForm.cep)}
+                    disabled={buscandoCep || somenteNumeros(foneForm.cep).length !== 8}
+                    className="whitespace-nowrap rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {buscandoCep ? 'Buscando…' : 'Buscar CEP'}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">O endereço será preenchido automaticamente, mas todos os campos continuam editáveis.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Rua</label>
+                  <input type="text" value={foneForm.rua} onChange={e=>setFoneForm({...foneForm, rua:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Rua / Avenida" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Nº</label>
+                  <input type="text" value={foneForm.numero} onChange={e=>setFoneForm({...foneForm, numero:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Número" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Bairro</label>
+                <input type="text" value={foneForm.bairro} onChange={e=>setFoneForm({...foneForm, bairro:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Bairro" />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Cidade</label>
+                  <input type="text" value={foneForm.cidade} onChange={e=>setFoneForm({...foneForm, cidade:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="Cidade" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Estado</label>
+                  <input type="text" value={foneForm.estado} onChange={e=>setFoneForm({...foneForm, estado:e.target.value.toUpperCase().slice(0,2)})} className="w-full rounded-lg border p-2 text-[#535151] uppercase" placeholder="UF" maxLength={2} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">CPF</label>
+                  <input type="text" inputMode="numeric" value={foneForm.cpf} onChange={e=>setFoneForm({...foneForm, cpf:formatarCpf(e.target.value)})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="000.000.000-00" maxLength={14} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1 text-[#ff751f]">Telefone</label>
+                  <input type="tel" inputMode="tel" value={foneForm.telefone} onChange={e=>setFoneForm({...foneForm, telefone:formatarTelefone(e.target.value)})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="(00) 00000-0000" maxLength={15} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1 text-[#ff751f]">E-mail</label>
+                <input type="email" value={foneForm.email} onChange={e=>setFoneForm({...foneForm, email:e.target.value})} className="w-full rounded-lg border p-2 text-[#535151]" placeholder="email@exemplo.com" />
+              </div>
+
+              <div className="flex items-start gap-2 rounded-lg bg-gray-50 p-3">
+                <input id="fone-ciente" type="checkbox" className="mt-1 h-4 w-4" checked={foneForm.ciente} onChange={e=>setFoneForm({...foneForm, ciente:e.target.checked})} />
+                <label htmlFor="fone-ciente" className="text-sm font-semibold text-[#ff751f]">
+                  Confirmo que conferi todos os dados e que estão corretos e atualizados.
+                </label>
+              </div>
+
+              <button type="submit" disabled={enviandoFone || buscandoCep} className="rounded-lg bg-[#2687e2] px-4 py-2 font-semibold text-white hover:bg-blue-600 disabled:opacity-50">
+                {enviandoFone ? 'Enviando…' : 'Solicitar novo fone'}
               </button>
             </form>
           </div>

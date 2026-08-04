@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 
 type Linha = {
   id: string
-  campanha: 'Elogio Premiado' | 'Reciclagem' | 'Vale'
+  campanha: 'Elogio Premiado' | 'Reciclagem' | 'Vale' | 'Solicitar novo fone'
   data: string
   nicho?: 'SAC' | 'Clínica' | '-'   // Vale não tem nicho → '-'
   nome: string
@@ -23,6 +23,16 @@ type Linha = {
   // Vale
   valor?: number | null
   ciente?: boolean | null
+  // Solicitação de fone
+  cep?: string | null
+  rua?: string | null
+  numero?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  estado?: string | null
+  cpf?: string | null
+  telefone?: string | null
+  email?: string | null
 
   created_at: string
 }
@@ -97,15 +107,26 @@ export default function RelatoriosCampanhas() {
         .select('id, created_at, data, nome, valor, ciente')
         .gte('data', dataIni).lte('data', dataFim)
 
+      // SOLICITAÇÕES DE NOVO FONE
+      const foneQ = supabase
+        .from('solicitacoes_fone')
+        .select('id, created_at, data, nome, cep, rua, numero, bairro, cidade, estado, cpf, telefone, email, ciente')
+        .gte('data', dataIni).lte('data', dataFim)
+
       const [
         { data: elogios, error: e1 },
         { data: recs, error: e2 },
-        { data: vales, error: e3 }
-      ] = await Promise.all([elogiosQ, reciclagemQ, valeQ])
+        { data: vales, error: e3 },
+        { data: fones, error: e4 }
+      ] = await Promise.all([elogiosQ, reciclagemQ, valeQ, foneQ])
 
       if (e1) throw e1
       if (e2) throw e2
       if (e3) throw e3
+      if (e4) {
+        console.error('Erro ao consultar solicitacoes_fone:', e4)
+        throw new Error(`Não foi possível consultar as solicitações de fone: ${e4.message}. Verifique a política SELECT/RLS da tabela solicitacoes_fone.`)
+      }
 
       const L1: Linha[] = (elogios ?? []).map((r:any)=>({
         id: r.id,
@@ -142,8 +163,26 @@ export default function RelatoriosCampanhas() {
         ciente: r.ciente,
         created_at: r.created_at
       }))
+      const L4: Linha[] = (fones ?? []).map((r:any)=>({
+        id: r.id,
+        campanha: 'Solicitar novo fone',
+        data: r.data,
+        nicho: '-',
+        nome: r.nome,
+        cep: r.cep,
+        rua: r.rua,
+        numero: r.numero,
+        bairro: r.bairro,
+        cidade: r.cidade,
+        estado: r.estado,
+        cpf: r.cpf,
+        telefone: r.telefone,
+        email: r.email,
+        ciente: r.ciente,
+        created_at: r.created_at
+      }))
 
-      let all = [...L1, ...L2, ...L3]
+      let all = [...L1, ...L2, ...L3, ...L4]
 
       // Filtros de campanha/nicho/nome
       if (fCampanha !== 'Todas') all = all.filter(l => l.campanha === fCampanha as any)
@@ -181,6 +220,7 @@ export default function RelatoriosCampanhas() {
       'Empresa','Telefone/Protocolo','Elogio',
       'Empresas prioridade','Empresas dificuldade','Preparado','Preferência','Duas no mesmo dia',
       'Valor','Ciente',
+      'CEP','Rua','Número','Bairro','Cidade','Estado','CPF','Telefone','E-mail',
       'Criado em'
     ]
     const rows = linhas.map(l => [
@@ -202,6 +242,16 @@ export default function RelatoriosCampanhas() {
       // Vale
       (l.valor ?? '') as any,
       l.ciente === true ? 'Sim' : l.ciente === false ? 'Não' : '',
+      // Solicitação de fone
+      l.cep ?? '',
+      l.rua ?? '',
+      l.numero ?? '',
+      l.bairro ?? '',
+      l.cidade ?? '',
+      l.estado ?? '',
+      l.cpf ?? '',
+      l.telefone ?? '',
+      l.email ?? '',
       // fim
       new Date(l.created_at).toLocaleString('pt-BR')
     ].map(csvEscape).join(';'))
@@ -266,7 +316,7 @@ export default function RelatoriosCampanhas() {
                 {['Todos','SAC','Clínica'].map(n=><option key={n} value={n}>{n}</option>)}
               </select>
               <p className="text-[11px] text-gray-500 mt-1">
-                * Registros da campanha Vale aparecem apenas quando Nicho = “Todos”.
+                * Registros de Vale e Solicitar novo fone aparecem apenas quando Nicho = “Todos”.
               </p>
             </div>
             <div>
@@ -276,7 +326,7 @@ export default function RelatoriosCampanhas() {
                 onChange={e=>setFCampanha(e.target.value)}
                 className="w-full rounded-lg border p-2 text-[#535151]"
               >
-                {['Todas','Elogio Premiado','Reciclagem','Vale'].map(c=><option key={c} value={c}>{c}</option>)}
+                {['Todas','Elogio Premiado','Reciclagem','Vale','Solicitar novo fone'].map(c=><option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             {/* Filtro novo */}
@@ -363,7 +413,7 @@ export default function RelatoriosCampanhas() {
                     <th className="border-b p-2">Data</th>
                     <th className="border-b p-2">Nicho</th>
                     <th className="border-b p-2">Nome</th>
-                    <th className="border-b p-2">Empresa / Protocolo / Preferência / Valor</th>
+                    <th className="border-b p-2">Informações principais</th>
                     <th className="border-b p-2">Detalhes</th>
                     <th className="border-b p-2">Criado em</th>
                   </tr>
@@ -403,7 +453,7 @@ export default function RelatoriosCampanhas() {
                               <span className="font-semibold" style={{color:'#ff751f'}}>Duas no mesmo dia:</span> {l.duas_no_mesmo_dia===true?'Sim':l.duas_no_mesmo_dia===false?'Não':'-'}
                             </div>
                           </>
-                        ) : (
+                        ) : l.campanha==='Vale' ? (
                           <>
                             <div>
                               <span className="font-semibold" style={{color:'#ff751f'}}>Valor:</span>{' '}
@@ -414,6 +464,12 @@ export default function RelatoriosCampanhas() {
                             <div>
                               <span className="font-semibold" style={{color:'#ff751f'}}>Ciente:</span> {l.ciente===true?'Sim':l.ciente===false?'Não':'-'}
                             </div>
+                          </>
+                        ) : (
+                          <>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Telefone:</span> {l.telefone ?? '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>E-mail:</span> {l.email ?? '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>CPF:</span> {l.cpf ?? '-'}</div>
                           </>
                         )}
                       </td>
@@ -433,8 +489,16 @@ export default function RelatoriosCampanhas() {
                               <span className="font-semibold" style={{color:'#ff751f'}}>Preparado:</span> {l.preparado===true?'Sim':l.preparado===false?'Não':'-'}
                             </div>
                           </>
-                        ) : (
+                        ) : l.campanha==='Vale' ? (
                           '-'
+                        ) : (
+                          <>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>CEP:</span> {l.cep ?? '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Endereço:</span> {l.rua ?? '-'}, {l.numero ?? '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Bairro:</span> {l.bairro ?? '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Cidade/UF:</span> {l.cidade ?? '-'} / {l.estado ?? '-'}</div>
+                            <div><span className="font-semibold" style={{color:'#ff751f'}}>Dados conferidos:</span> {l.ciente===true?'Sim':l.ciente===false?'Não':'-'}</div>
+                          </>
                         )}
                       </td>
 

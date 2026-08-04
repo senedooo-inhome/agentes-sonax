@@ -644,8 +644,7 @@ export default function CampanhasPage() {
             <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-gray-800">
               <p className="font-bold text-[#ff751f]">Solicitar novo fone</p>
               <p className="mt-2 text-sm">
-                Sempre que for necessário realizar o envio de fone para algum colaborador,
-                é obrigatório confirmar e preencher todos os dados abaixo.
+                Caso você precise de um novo fone porque o seu atual está apresentando algum problema, por favor, preencha os dados abaixo para solicitarmos o envio:
               </p>
               <p className="mt-3 text-sm font-semibold">
                 Antes de solicitar o envio, confiram todos os dados e garantam que estejam corretos e atualizados.

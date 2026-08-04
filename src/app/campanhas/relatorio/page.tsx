@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
+type StatusFone =
+  | 'Aguardando aprovação'
+  | 'Solicitação aprovada'
+  | 'Enviado fone'
+  | 'Recebido o fone'
+
 type Linha = {
   id: string
   campanha: 'Elogio Premiado' | 'Reciclagem' | 'Vale' | 'Solicitar novo fone'
@@ -33,6 +39,7 @@ type Linha = {
   cpf?: string | null
   telefone?: string | null
   email?: string | null
+  status_fone?: StatusFone | null
 
   created_at: string
 }
@@ -68,6 +75,7 @@ export default function RelatoriosCampanhas() {
 
   const [linhas, setLinhas] = useState<Linha[]>([])
   const [loading, setLoading] = useState(false)
+  const [salvandoStatusId, setSalvandoStatusId] = useState<string | null>(null)
 
   function atalhoHoje(){
     const d = new Date().toISOString().slice(0,10)
@@ -110,7 +118,7 @@ export default function RelatoriosCampanhas() {
       // SOLICITAÇÕES DE NOVO FONE
       const foneQ = supabase
         .from('solicitacoes_fone')
-        .select('id, created_at, data, nome, cep, rua, numero, bairro, cidade, estado, cpf, telefone, email, ciente')
+        .select('id, created_at, data, nome, cep, rua, numero, bairro, cidade, estado, cpf, telefone, email, ciente, status_fone')
         .gte('data', dataIni).lte('data', dataFim)
 
       const [
@@ -179,6 +187,7 @@ export default function RelatoriosCampanhas() {
         telefone: r.telefone,
         email: r.email,
         ciente: r.ciente,
+        status_fone: r.status_fone ?? 'Aguardando aprovação',
         created_at: r.created_at
       }))
 
@@ -210,6 +219,54 @@ export default function RelatoriosCampanhas() {
 
   useEffect(()=>{ buscar() }, [])
 
+  const statusFoneOpcoes: StatusFone[] = [
+    'Aguardando aprovação',
+    'Solicitação aprovada',
+    'Enviado fone',
+    'Recebido o fone'
+  ]
+
+  function classeStatusFone(status: StatusFone | null | undefined) {
+    switch (status) {
+      case 'Solicitação aprovada':
+        return 'border-green-300 bg-green-50 text-green-700'
+      case 'Enviado fone':
+        return 'border-blue-300 bg-blue-50 text-blue-700'
+      case 'Recebido o fone':
+        return 'border-purple-300 bg-purple-50 text-purple-700'
+      default:
+        return 'border-amber-300 bg-amber-50 text-amber-700'
+    }
+  }
+
+  async function atualizarStatusFone(id: string, status: StatusFone) {
+    setSalvandoStatusId(id)
+
+    const statusAnterior = linhas.find(l => l.id === id && l.campanha === 'Solicitar novo fone')?.status_fone
+
+    setLinhas(atual => atual.map(l =>
+      l.id === id && l.campanha === 'Solicitar novo fone'
+        ? { ...l, status_fone: status }
+        : l
+    ))
+
+    const { error } = await supabase
+      .from('solicitacoes_fone')
+      .update({ status_fone: status })
+      .eq('id', id)
+
+    if (error) {
+      setLinhas(atual => atual.map(l =>
+        l.id === id && l.campanha === 'Solicitar novo fone'
+          ? { ...l, status_fone: statusAnterior ?? 'Aguardando aprovação' }
+          : l
+      ))
+      alert('Erro ao atualizar o status do fone: ' + error.message)
+    }
+
+    setSalvandoStatusId(null)
+  }
+
   // CSV
   function csvEscape(v: any) { return `"${String(v ?? '').replace(/"/g,'""')}"` }
   function exportarCSV() {
@@ -220,7 +277,7 @@ export default function RelatoriosCampanhas() {
       'Empresa','Telefone/Protocolo','Elogio',
       'Empresas prioridade','Empresas dificuldade','Preparado','Preferência','Duas no mesmo dia',
       'Valor','Ciente',
-      'CEP','Rua','Número','Bairro','Cidade','Estado','CPF','Telefone','E-mail',
+      'CEP','Rua','Número','Bairro','Cidade','Estado','CPF','Telefone','E-mail','Status do fone',
       'Criado em'
     ]
     const rows = linhas.map(l => [
@@ -252,6 +309,7 @@ export default function RelatoriosCampanhas() {
       l.cpf ?? '',
       l.telefone ?? '',
       l.email ?? '',
+      l.campanha === 'Solicitar novo fone' ? (l.status_fone ?? 'Aguardando aprovação') : '',
       // fim
       new Date(l.created_at).toLocaleString('pt-BR')
     ].map(csvEscape).join(';'))
@@ -415,6 +473,7 @@ export default function RelatoriosCampanhas() {
                     <th className="border-b p-2">Nome</th>
                     <th className="border-b p-2">Informações principais</th>
                     <th className="border-b p-2">Detalhes</th>
+                    <th className="border-b p-2">Status do fone</th>
                     <th className="border-b p-2">Criado em</th>
                   </tr>
                 </thead>
@@ -499,6 +558,28 @@ export default function RelatoriosCampanhas() {
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Cidade/UF:</span> {l.cidade ?? '-'} / {l.estado ?? '-'}</div>
                             <div><span className="font-semibold" style={{color:'#ff751f'}}>Dados conferidos:</span> {l.ciente===true?'Sim':l.ciente===false?'Não':'-'}</div>
                           </>
+                        )}
+                      </td>
+
+                      <td className="border-b p-2 text-[#535151]">
+                        {l.campanha === 'Solicitar novo fone' ? (
+                          <div className="min-w-[190px]">
+                            <select
+                              value={l.status_fone ?? 'Aguardando aprovação'}
+                              onChange={e => atualizarStatusFone(l.id, e.target.value as StatusFone)}
+                              disabled={salvandoStatusId === l.id}
+                              className={`w-full rounded-lg border px-3 py-2 text-xs font-semibold outline-none transition disabled:cursor-not-allowed disabled:opacity-60 ${classeStatusFone(l.status_fone)}`}
+                            >
+                              {statusFoneOpcoes.map(status => (
+                                <option key={status} value={status}>{status}</option>
+                              ))}
+                            </select>
+                            {salvandoStatusId === l.id && (
+                              <div className="mt-1 text-[11px] text-gray-400">Salvando status...</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">—</span>
                         )}
                       </td>
 

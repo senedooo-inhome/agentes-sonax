@@ -76,10 +76,12 @@ const menuLinks: readonly MenuItem[] = [
       { href: '/qualidade-registros', label: 'Avaliação & Reclamações' },
       { href: '/monitoria-qualidade/elogios', label: 'Elogios' },
       { href: '/monitoria-qualidade/nps-solicitado', label: 'NPS Solicitado' },
+      
     ],
   },
 
   { href: '/informacoes-agentes', label: 'Informações de Agentes' },
+  { href: '/cadastro-empresas', label: 'Cadastro de Empresas' },
 
   { href: '/login?logout=1', label: 'Sair', color: 'gray' },
 ] as const
